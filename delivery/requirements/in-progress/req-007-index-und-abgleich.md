@@ -70,7 +70,7 @@ statt es Jahre später zu bemerken.
 - [x] Given ich kopiere `urlaub.jpg` von Hand nach
   `original/_wartend/2019-06/`, when ich abgleiche, then erscheint sie
   als "unbekannte Datei" und zählt NICHT als Foto.
-- [ ] Given 10.000 Dateien im Baum und keine Änderung seit dem letzten
+- [x] Given 10.000 Dateien im Baum und keine Änderung seit dem letzten
   Lauf, when ich "Abgleich jetzt" drücke, then zeigt der Bereich eine
   Dauer von höchstens 2 Minuten.
 - [ ] Given der Index kennt 120 Fotos, davon 1 vermisst, when ich "Neu

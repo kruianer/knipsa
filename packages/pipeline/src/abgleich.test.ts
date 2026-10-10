@@ -464,6 +464,39 @@ describe('unbekannte Dateien', () => {
   });
 });
 
+describe('Abgleich ueber einen grossen Baum', () => {
+  /** Schluessel Nummer `nummer` am 14. Juni 2019. */
+  function schluesselNummer(nummer: number): string {
+    const stunde = String(Math.floor(nummer / 3600)).padStart(2, '0');
+    const minute = String(Math.floor(nummer / 60) % 60).padStart(2, '0');
+    const sekunde = String(nummer % 60).padStart(2, '0');
+    return `20190614-${stunde}${minute}${sekunde}a`;
+  }
+
+  it('braucht ohne Aenderung bei 10.000 Dateien hoechstens 2 Minuten', async () => {
+    const anzahl = 10_000;
+    const bytes = nefBytes({ datum: AUFNAHME });
+
+    for (let nummer = 0; nummer < anzahl; nummer += 1) {
+      const schluessel = schluesselNummer(nummer);
+      await schreibeDatei(imBaum(`${MONAT}/${schluessel}.NEF`), bytes);
+    }
+
+    // Erster Lauf: alles neu, jede Datei wird gelesen.
+    const erster = await fuehreAbgleichAus({ wurzel, index, leser: leserMit({}) });
+    expect(erster.dateien).toBe(anzahl);
+
+    // Zweiter Lauf: nichts hat sich geaendert.
+    const leser = leserMit({});
+    const zweiter = await fuehreAbgleichAus({ wurzel, index, leser });
+
+    expect(zweiter.dateien).toBe(anzahl);
+    expect(leser.gelesen).toHaveLength(0);
+    expect(zweiter.dauerMs).toBeLessThanOrEqual(120_000);
+    expect((await index.zahlen()).letzter?.dauerMs).toBe(zweiter.dauerMs);
+  }, 300_000);
+});
+
 describe('pruefeAlarm', () => {
   const basis = {
     importPruefsumme: 'jetzt',
