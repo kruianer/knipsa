@@ -30,6 +30,11 @@ function server(options: {
     if (url === '/api/import') {
       return Promise.resolve(antwort(options.import ?? { quellen: [], laeufe: [] }));
     }
+    if (url === '/api/archiv') {
+      return Promise.resolve(
+        antwort({ fotos: 120, dateien: 231, vermisst: 1, alarme: 0, unbekannte: 0 }),
+      );
+    }
     return Promise.resolve(new Response('', { status: 404 }));
   };
 }
@@ -122,6 +127,17 @@ describe('starteSeite', () => {
     const bereich = seite().querySelector('#import');
     expect(bereich?.querySelector('h2')?.textContent).toBe('Import');
     expect(bereich?.querySelector('.quelle-name')?.textContent).toBe('Test');
+  });
+
+  it('haengt den Bereich Archiv mit den Zahlen des Servers an', async () => {
+    await oeffne(server({}));
+
+    const bereich = seite().querySelector('#archiv');
+    expect(bereich?.querySelector('h2')?.textContent).toBe('Archiv');
+    expect(bereich?.querySelector('.archiv-zahl[data-art="fotos"] .zahl-knopf')?.textContent).toBe(
+      'Fotos: 120',
+    );
+    expect(bereich?.querySelectorAll('img')).toHaveLength(0);
   });
 });
 

@@ -57,8 +57,12 @@ Binding test policy for the worker.
 - The full test suite (see Commands) must pass before promotion to
   prod — this is the automated half of the quality gate; the user's
   manual acceptance on the dev URL is the other half.
-- Integrationstests laufen gegen echtes PostgreSQL mit pgvector (Docker)
-  und echtes `exiftool`, nicht gemockt.
+- Integrationstests laufen gegen echtes PostgreSQL mit pgvector und
+  echtes `exiftool`, nicht gemockt. Das PostgreSQL läuft dabei als
+  PGlite im Testprozess (dieselbe SQL-Maschine, dieselben
+  Kysely-Migrationen, kein Container nötig). Mit `TEST_DATABASE_URL`
+  laufen dieselben Tests gegen ein laufendes PostgreSQL, zum Beispiel das
+  aus `docker compose`.
 - Tests arbeiten nur in temporären Verzeichnissen mit Testbildern
   (NEF, JPEG, HEIC, XMP) — nie auf einem echten Foto-Baum.
 - Ollama und der Embedding-Dienst werden in Unit- und Integrationstests
