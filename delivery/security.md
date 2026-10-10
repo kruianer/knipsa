@@ -14,6 +14,9 @@ Er prueft bei jedem Lauf das IST des Repos gegen dieses SOLL.
 - HTTPS: Pflicht, auch im Heimnetz — die App wird immer über ihren
   Tunnel-Hostnamen aufgerufen (TLS durch Cloudflare); kein Klartext-HTTP,
   HSTS gesetzt. Kein Knipsa-Container veröffentlicht einen Port am Host.
+- Übergang bis req-004: nur im Heim-WLAN per HTTP über
+  `192.168.2.200:8098/8099`. In dieser Phase zeigt die App keine Fotos
+  und keine personenbezogenen Daten.
 - Postgres, Ollama, Embedding-Dienst und alle internen Ports sind nur im
   Docker-Netz erreichbar, nie von außen und nicht im WLAN.
 

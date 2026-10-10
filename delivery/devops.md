@@ -9,14 +9,18 @@ This file is binding for the autonomous worker. Follow it exactly.
 
 ## Environments
 
-| Environment | Branch | URL                              |
-|-------------|--------|----------------------------------|
-| dev         | dev    | https://dev.knipsa.kremmel.org   |
-| prod        | main   | https://knipsa.kremmel.org       |
+| Environment | Branch | URL (aktuell, nur LAN)       | URL (Ziel, ab req-004)           |
+|-------------|--------|------------------------------|----------------------------------|
+| dev         | dev    | http://192.168.2.200:8098    | https://dev.knipsa.kremmel.org   |
+| prod        | main   | http://192.168.2.200:8099    | https://knipsa.kremmel.org       |
 
 Hosting platform: Docker Compose auf dem Beelink (Ubuntu), deployt über
-GitHub Actions mit self-hosted Runner auf dem Beelink. Erreichbarkeit von
-außen über Cloudflare-Tunnel (siehe `delivery/security.md`).
+GitHub Actions mit self-hosted Runner auf dem Beelink.
+
+**Übergang:** Bis req-004 umgesetzt ist, sind beide Umgebungen nur im
+Heim-WLAN über die IP des Beelink erreichbar (Port nur an
+`192.168.2.200` gebunden). Abnahme erfolgt in dieser Zeit über die
+LAN-URL. Danach gilt die Ziel-URL, und die LAN-Ports entfallen.
 
 Getrennte Umgebungen auf demselben Host:
 
@@ -75,7 +79,7 @@ URL. Schlägt ein Schritt fehl, bleibt die laufende Version stehen.
 Kein Port am Router — weder für Web noch für SSH. Alles läuft über
 Cloudflare-Tunnel, die von innen nach außen aufbauen.
 
-**Web (je Umgebung ein eigener Tunnel):**
+**Web (je Umgebung ein eigener Tunnel) — geplant, umgesetzt mit req-004:**
 
 | Umgebung | Hostname | Tunnel | Ziel | Token in |
 |---|---|---|---|---|

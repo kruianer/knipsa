@@ -5,6 +5,9 @@ area: Zugang
 created: 2026-10-10
 ---
 
+> **Status draft:** Passkeys brauchen HTTPS. Erst nach `ready/`
+> verschieben, wenn req-004 (Externer Zugang) umgesetzt ist.
+
 # Goal (Why)
 
 Knipsa ist über `https://knipsa.kremmel.org` aus dem Internet erreichbar
@@ -117,7 +120,7 @@ nutzbar. Weitere Nutzer und Gastzugänge folgen in req-003 (derzeit
   - dev: Origin `https://dev.knipsa.kremmel.org`, rpId
     `dev.knipsa.kremmel.org`
   - lokal: Origin `http://localhost:<port>`, rpId `localhost`
-  Die Origin kommt aus `APP_ORIGIN` (aus req-001), die rpId ist deren
+  Die Origin kommt aus `APP_ORIGIN` (aus req-001/req-004), die rpId ist deren
   Hostname; der Server prüft die Origin exakt.
 
 # Acceptance Criteria
@@ -186,9 +189,9 @@ nutzbar. Weitere Nutzer und Gastzugänge folgen in req-003 (derzeit
 
 # Constraints
 
-- Setzt req-001 (Betriebsgerüst und externer Zugang) voraus.
+- Setzt req-001 (Betriebsgerüst) und req-004 (Externer Zugang) voraus.
 - WebAuthn funktioniert nur im "secure context": dev und prod brauchen
-  gültiges TLS — das liefert der Cloudflare-Tunnel aus req-001.
+  gültiges TLS — das liefert der Cloudflare-Tunnel aus req-004.
   `localhost` gilt als sicher.
 - Conditional UI setzt Discoverable Credentials voraus
   (`residentKey: "required"`).
@@ -214,6 +217,6 @@ nutzbar. Weitere Nutzer und Gastzugänge folgen in req-003 (derzeit
 - Passwort-Login, offene öffentliche Registrierung, Backup-Codes.
 - Einladungen, weitere Nutzer, Gastzugänge, Bereiche "Nutzer" und
   "Gastzugänge" (→ req-003).
-- Cloudflare-Tunnel, Compose und Deploy-Workflow (→ req-001).
+- Compose und Deploy-Workflow (→ req-001), Cloudflare-Tunnel (→ req-004).
 - Maschinen-Zugang für Dienste (z.B. späterer Export-Wächter am PC).
 - Löschen des lokalen Bildspeichers beim Abmelden.
