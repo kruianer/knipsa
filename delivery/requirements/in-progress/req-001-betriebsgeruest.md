@@ -106,10 +106,10 @@ nach dem Muster der anderen Apps des Betreibers)
 - [ ] Given ein Commit mit fehlschlagendem Test, when er auf `dev`
   gepusht wird, then wird nicht deployt und die vorherige Version bleibt
   erreichbar.
-- [ ] Given die laufenden Container, when ich `docker ps` auf dem
+- [x] Given die laufenden Container, when ich `docker ps` auf dem
   Beelink ansehe, then veröffentlicht nur `server` einen Port, und zwar
   nur an `192.168.2.200`; die Datenbank hat keinen Port am Host.
-- [ ] Given dev und prod laufen, when ich ihre Datenbanken vergleiche,
+- [x] Given dev und prod laufen, when ich ihre Datenbanken vergleiche,
   then sind es getrennte Container mit getrennten Volumes, und dev hat
   nur den Test-Baum unter `/fotos` eingebunden.
 

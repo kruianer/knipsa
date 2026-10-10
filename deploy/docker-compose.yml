@@ -1,0 +1,71 @@
+# Ein Compose-File fuer beide Umgebungen. Unterschieden wird ueber den
+# Projektnamen und die env-Datei auf dem Beelink:
+#
+#   dev:  docker compose -p knipsa-dev  --env-file "$HOME/knipsa-env/dev.env"  -f deploy/docker-compose.yml up -d --build
+#   prod: docker compose -p knipsa-prod --env-file "$HOME/knipsa-env/prod.env" -f deploy/docker-compose.yml up -d --build
+#
+# In dieser Datei stehen nur Variablennamen, nie Werte. Alle Werte kommen
+# aus der env-Datei (siehe deploy/example.env).
+
+services:
+  server:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile
+    env_file:
+      - /home/kruianer/knipsa-env/${KNIPSA_ENV}.env
+    environment:
+      # Nur containerinterne Werte. Der Server lauscht im Container auf
+      # allen Adressen; nach aussen ist ausschliesslich
+      # 192.168.2.200:${KNIPSA_PORT} veroeffentlicht (siehe ports).
+      SERVER_HOST: 0.0.0.0
+      SERVER_PORT: '3000'
+      # Der Foto-Baum ist im Container immer unter /fotos eingebunden.
+      FOTOS_PFAD: /fotos
+      NODE_ENV: production
+    ports:
+      # Nur im Heim-WLAN erreichbar: gebunden an die LAN-IP des Beelink,
+      # nicht an 0.0.0.0. Kein Port am Router (siehe delivery/security.md).
+      - '192.168.2.200:${KNIPSA_PORT}:3000'
+    volumes:
+      # Foto-Baum aus FOTOS_ROOT, in req-001 nur lesend — es wird noch
+      # nichts geschrieben. Die NAS-Einbindung aendert spaeter nur FOTOS_ROOT.
+      - '${FOTOS_ROOT}:/fotos:ro'
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: unless-stopped
+    healthcheck:
+      test:
+        [
+          'CMD',
+          'node',
+          '-e',
+          "fetch('http://127.0.0.1:3000/health/live').then(a=>process.exit(a.ok?0:1)).catch(()=>process.exit(1))",
+        ]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  db:
+    # Postgres 18 (aktuelle Hauptversion) mit pgvector. Die Hauptversion ist
+    # bewusst festgenagelt: ein Sprung braucht Dump und Restore.
+    image: pgvector/pgvector:pg18
+    env_file:
+      - /home/kruianer/knipsa-env/${KNIPSA_ENV}.env
+    # Bewusst keine ports: Die Datenbank ist nur im Docker-Netz erreichbar.
+    volumes:
+      # Benanntes Volume; Compose stellt den Projektnamen davor, dev und
+      # prod haben damit getrennte Volumes.
+      - db-daten:/var/lib/postgresql/data
+    restart: unless-stopped
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U "$$POSTGRES_USER" -d "$$POSTGRES_DB"']
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+
+volumes:
+  db-daten:
