@@ -1,6 +1,6 @@
-import { appendFile, mkdtemp, rm, utimes } from 'node:fs/promises';
+import { appendFile, mkdtemp, readdir, rm, stat, utimes } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { join, posix } from 'node:path';
 
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
@@ -98,6 +98,33 @@ async function merkeSchluessel(schluessel = SCHLUESSEL): Promise<void> {
       zeitpunkt: '2026-10-10T08:00:00.000Z',
     },
   ]);
+}
+
+/**
+ * Jede Datei und jeder Ordner im Foto-Baum mit Groesse, Aenderungszeit
+ * und Pruefsumme. Die Gesehen-Liste bleibt aussen vor: sie darf wachsen
+ * (siehe req-007), alles andere nicht.
+ */
+async function standDesBaums(ordner = ''): Promise<Record<string, string>> {
+  const stand: Record<string, string> = {};
+
+  for (const eintrag of await readdir(join(wurzel, ordner), { withFileTypes: true })) {
+    const pfad = posix.join(ordner, eintrag.name);
+    if (pfad === 'gesehen' || pfad === 'gesehen/gesehen.jsonl') {
+      continue;
+    }
+
+    if (eintrag.isDirectory()) {
+      stand[`${pfad}/`] = 'Ordner';
+      Object.assign(stand, await standDesBaums(pfad));
+    } else if (eintrag.isFile()) {
+      const vollPfad = join(wurzel, pfad);
+      const angaben = await stat(vollPfad);
+      stand[pfad] = `${angaben.size} ${angaben.mtimeMs} ${await pruefsumme(vollPfad)}`;
+    }
+  }
+
+  return stand;
 }
 
 /** Die Auskunft zu einem Schluessel; fehlt sie, ist der Test gescheitert. */
@@ -461,6 +488,57 @@ describe('unbekannte Dateien', () => {
 
     expect(lauf.unbekannte).toBe(0);
     expect(lauf.dateien).toBe(2);
+  });
+});
+
+describe('Neu aufbauen', () => {
+  it('kennt danach dieselben Fotos samt dem vermissten Schluessel', async () => {
+    const bytes = nefBytes({ datum: AUFNAHME });
+    const schluessel = (nummer: number): string =>
+      `20190614-10${String(Math.floor(nummer / 60)).padStart(2, '0')}${String(nummer % 60).padStart(2, '0')}a`;
+
+    // 120 Fotos, davon eines nur noch in der Gesehen-Liste.
+    for (let nummer = 1; nummer < 120; nummer += 1) {
+      await schreibeDatei(imBaum(`${MONAT}/${schluessel(nummer)}.NEF`), bytes);
+    }
+    await merkeSchluessel(schluessel(0));
+
+    const vorher = await fuehreAbgleichAus({ wurzel, index, leser: leserMit({}) });
+    expect(vorher.fotos).toBe(120);
+    expect(vorher.vermisst).toBe(1);
+
+    const nachher = await fuehreAbgleichAus({
+      wurzel,
+      index,
+      leser: leserMit({}),
+      neuAufbauen: true,
+    });
+
+    expect(nachher.art).toBe('neuaufbau');
+    expect(nachher.fotos).toBe(120);
+    expect(nachher.vermisst).toBe(1);
+    await expect(index.liste('vermisst', 500)).resolves.toEqual([schluessel(0)]);
+  });
+
+  it('liest dabei jede Datei neu ein', async () => {
+    await legeFotoAb();
+    await fuehreAbgleichAus({ wurzel, index, leser: leserMit({}) });
+
+    const leser = leserMit({ [`${SCHLUESSEL}.xmp`]: { bewertung: 5 } });
+    await fuehreAbgleichAus({ wurzel, index, leser, neuAufbauen: true });
+
+    expect(leser.gelesen).toEqual([`${SCHLUESSEL}.xmp`]);
+    expect((await auskunftVon(SCHLUESSEL)).foto.bewertung).toBe(5);
+  });
+
+  it('laesst Fotos, Sidecars und Ordner im Baum unangetastet', async () => {
+    await legeFotoAb();
+    await merkeNefGesehen();
+    const vorher = await standDesBaums();
+
+    await fuehreAbgleichAus({ wurzel, index, leser: leserMit({}), neuAufbauen: true });
+
+    expect(await standDesBaums()).toEqual(vorher);
   });
 });
 

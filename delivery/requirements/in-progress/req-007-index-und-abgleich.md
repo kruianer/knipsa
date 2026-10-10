@@ -73,10 +73,10 @@ statt es Jahre später zu bemerken.
 - [x] Given 10.000 Dateien im Baum und keine Änderung seit dem letzten
   Lauf, when ich "Abgleich jetzt" drücke, then zeigt der Bereich eine
   Dauer von höchstens 2 Minuten.
-- [ ] Given der Index kennt 120 Fotos, davon 1 vermisst, when ich "Neu
+- [x] Given der Index kennt 120 Fotos, davon 1 vermisst, when ich "Neu
   aufbauen" bestätige, then zeigt der Bereich danach wieder 120 Fotos und
   denselben vermissten Schlüssel.
-- [ ] Given ein Import läuft, when ich "Neu aufbauen" drücke, then
+- [x] Given ein Import läuft, when ich "Neu aufbauen" drücke, then
   erscheint "Import läuft — bitte warten" und der Index bleibt
   unverändert.
 - [ ] Given ein Abgleich oder Neuaufbau läuft, when er fertig ist, then

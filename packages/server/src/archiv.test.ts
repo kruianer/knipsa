@@ -4,11 +4,14 @@ import { join } from 'node:path';
 
 import {
   ArchivDienst,
+  ImportDienst,
   KEINE_ANGABEN,
   LEERER_STAND,
   speicherIndex,
+  Sperre,
   type ArchivIndex,
   type ArchivStand,
+  type LaufErgebnis,
 } from '@knipsa/pipeline';
 import type { FastifyInstance } from 'fastify';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -64,6 +67,23 @@ const STAND: ArchivStand = {
     unbekannte: 1,
   },
 };
+
+/** Ergebnis eines Laufs, der nichts kopiert — hier zaehlt die Sperre. */
+function laufErgebnis(): LaufErgebnis {
+  return {
+    quelle: 'Test',
+    begonnen: '2026-10-10T08:00:00.000Z',
+    beendet: '2026-10-10T08:00:01.000Z',
+    gesamt: 0,
+    neu: 0,
+    bekannt: 0,
+    uebersprungen: 0,
+    problem: 0,
+    dateien: [],
+    abschluss: 'Vollständig im Archiv',
+    protokoll: 'protokoll/import/lauf.log',
+  };
+}
 
 beforeEach(async () => {
   wurzel = await mkdtemp(join(tmpdir(), 'knipsa-archiv-api-'));
@@ -259,6 +279,59 @@ describe('Abgleich nach dem Import', () => {
 });
 
 describe('POST /api/archiv/neu-aufbauen', () => {
+  it('weist "Neu aufbauen" mit 409 ab, solange ein Import laeuft', async () => {
+    const quelle = await mkdtemp(join(tmpdir(), 'knipsa-archiv-quelle-'));
+    const sperre = new Sperre();
+    const archiv = new ArchivDienst({
+      wurzel,
+      index,
+      sperre,
+      leser: () => ({
+        leseAngaben: () => Promise.resolve(KEINE_ANGABEN),
+        schliesse: () => Promise.resolve(),
+      }),
+      abgleich: () => Promise.resolve({}),
+    });
+
+    let loese = (): void => {};
+    const importDienst = new ImportDienst({
+      wurzel,
+      quellen: [{ name: 'Test', pfad: quelle }],
+      sperre,
+      leser: () => ({
+        leseAufnahmezeit: () => Promise.resolve({ art: 'keineZeit' as const }),
+        schliesse: () => Promise.resolve(),
+      }),
+      lauf: () => new Promise((fertig) => (loese = () => fertig(laufErgebnis()))),
+    });
+
+    app = baueApp({
+      konfig: testKonfiguration({ FOTOS_PFAD: wurzel }),
+      pruefungen: { datenbank: () => Promise.resolve(true), fotos: () => Promise.resolve(true) },
+      importDienst,
+      archivDienst: archiv,
+    });
+    await index.speichere(STAND);
+
+    const gestartet = await app.inject({
+      method: 'POST',
+      url: '/api/import/start',
+      payload: { quelle: 'Test' },
+    });
+    const abgewiesen = await app.inject({ method: 'POST', url: '/api/archiv/neu-aufbauen' });
+    loese();
+    await importDienst.arbeit();
+
+    expect(gestartet.statusCode).toBe(202);
+    expect(abgewiesen.statusCode).toBe(409);
+    expect(abgewiesen.json()).toMatchObject({
+      fehler: 'Import läuft — bitte warten',
+      laufend: 'import',
+    });
+    // Der Index ist unveraendert geblieben.
+    expect(await index.lade()).toEqual(STAND);
+  });
+
   it('baut neu auf und verwirft dabei den alten Index', async () => {
     const neuAufbau: boolean[] = [];
     const { app: gestartet, dienst } = starte(({ neuAufbauen }) => {

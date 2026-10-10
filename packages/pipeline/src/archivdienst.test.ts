@@ -197,6 +197,41 @@ describe('Abgleich nach dem Import', () => {
     expect((await archiv.zustand()).fotos).toBe(1);
   });
 
+  it('weist "Neu aufbauen" ab, solange ein Import laeuft, und laesst den Index stehen', async () => {
+    await legeFotoAb();
+    const sperre = new Sperre();
+    const archiv = dienstMit({ sperre });
+    archiv.gleicheAb();
+    await archiv.arbeit();
+    const vorher = await index.lade();
+
+    let abgewiesen: Error | undefined;
+    const importDienst = new ImportDienst({
+      wurzel,
+      quellen: [{ name: 'Test', pfad: wurzel }],
+      sperre,
+      leser: () => ({
+        leseAufnahmezeit: () => Promise.resolve({ art: 'keineZeit' as const }),
+        schliesse: () => Promise.resolve(),
+      }),
+      lauf: () => {
+        try {
+          archiv.baueNeuAuf();
+        } catch (fehler) {
+          abgewiesen = fehler as Error;
+        }
+        return Promise.resolve(laufMitFoto());
+      },
+    });
+
+    await importDienst.starte('Test');
+    await importDienst.arbeit();
+
+    expect(abgewiesen).toBeInstanceOf(VorhabenLaeuft);
+    expect(abgewiesen?.message).toBe('Import läuft — bitte warten');
+    await expect(index.lade()).resolves.toEqual(vorher);
+  });
+
   it('laesst Import und Abgleich nie gleichzeitig laufen', async () => {
     const sperre = new Sperre();
     const archiv = dienstMit({ sperre });
