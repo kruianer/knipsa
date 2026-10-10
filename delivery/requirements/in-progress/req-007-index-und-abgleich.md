@@ -53,9 +53,9 @@ statt es Jahre später zu bemerken.
   und "Toskana".
 - [x] Given ich ändere in dieser XMP die Bewertung auf 5 Sterne, when ich
   "Abgleich jetzt" drücke, then zeigt das Nachschlagen 5 Sterne.
-- [ ] Given ich entferne `20190614-101500a.NEF` aus dem Baum, when ich
+- [x] Given ich entferne `20190614-101500a.NEF` aus dem Baum, when ich
   "Abgleich jetzt" drücke, then steht `20190614-101500a` unter "vermisst".
-- [ ] Given `20190614-101500a.NEF` ist vermisst, when ich die Datei
+- [x] Given `20190614-101500a.NEF` ist vermisst, when ich die Datei
   zurücklege und abgleiche, then steht sie NICHT mehr unter "vermisst".
 - [ ] Given an `20190614-101500a.NEF` wird ein Byte angehängt, when ich
   abgleiche, then erscheint der Alarm "NEF verändert" für diesen

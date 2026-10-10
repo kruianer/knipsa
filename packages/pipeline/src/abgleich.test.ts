@@ -7,6 +7,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { fuehreAbgleichAus } from './abgleich.js';
 import { auskunftText } from './archivdienst.js';
 import { speicherIndex, type ArchivIndex, type FotoAuskunft } from './archivindex.js';
+import { GesehenListe } from './gesehen.js';
 import { KEINE_ANGABEN, type AngabenLeser, type GeleseneAngaben } from './metadaten.js';
 import { nefBytes, schreibeDatei, xmpText } from './test/testbilder.js';
 
@@ -58,6 +59,21 @@ async function legeFotoAb(bewertung = 4): Promise<void> {
     nefBytes({ datum: '2019:06:14 10:15:00' }),
   );
   await schreibeDatei(imBaum(`${MONAT}/${SCHLUESSEL}.xmp`), xmpText(bewertung));
+}
+
+/** Vermerkt eine importierte Datei in der Gesehen-Liste. */
+async function merkeGesehen(schluessel = SCHLUESSEL, endung = '.NEF'): Promise<void> {
+  const gesehen = await GesehenListe.lade(wurzel);
+  await gesehen.ergaenze([
+    {
+      pruefsumme: `summe${schluessel}${endung}`,
+      schluessel,
+      quelle: 'Test',
+      ordner: '',
+      dateiname: `DSC_0412${endung}`,
+      zeitpunkt: '2026-10-10T08:00:00.000Z',
+    },
+  ]);
 }
 
 /** Die Auskunft zu einem Schluessel; fehlt sie, ist der Test gescheitert. */
@@ -195,6 +211,73 @@ describe('Abgleich', () => {
     expect(lauf.beendet).toBe('2026-10-10T08:00:03.000Z');
     expect(lauf.dauerMs).toBe(3000);
     expect((await index.zahlen()).letzter).toEqual(lauf);
+  });
+
+  it('zaehlt ein Foto aus der Gesehen-Liste auch ohne Datei im Baum', async () => {
+    await legeFotoAb();
+    await merkeGesehen();
+    await fuehreAbgleichAus({ wurzel, index, leser: leserMit({}) });
+
+    await rm(imBaum(`${MONAT}/${SCHLUESSEL}.NEF`));
+    await rm(imBaum(`${MONAT}/${SCHLUESSEL}.xmp`));
+    const lauf = await fuehreAbgleichAus({ wurzel, index, leser: leserMit({}) });
+
+    expect(lauf.fotos).toBe(1);
+    expect(lauf.dateien).toBe(0);
+    expect(lauf.vermisst).toBe(1);
+    await expect(index.liste('vermisst', 500)).resolves.toEqual([SCHLUESSEL]);
+  });
+
+  it('nimmt ein zurueckgelegtes Foto wieder aus der Liste "vermisst"', async () => {
+    await legeFotoAb();
+    await merkeGesehen();
+    await fuehreAbgleichAus({ wurzel, index, leser: leserMit({}) });
+    await rm(imBaum(`${MONAT}/${SCHLUESSEL}.NEF`));
+    await rm(imBaum(`${MONAT}/${SCHLUESSEL}.xmp`));
+    await fuehreAbgleichAus({ wurzel, index, leser: leserMit({}) });
+
+    await legeFotoAb(5);
+    const lauf = await fuehreAbgleichAus({
+      wurzel,
+      index,
+      leser: leserMit({ [`${SCHLUESSEL}.xmp`]: { bewertung: 5 } }),
+    });
+
+    expect(lauf.vermisst).toBe(0);
+    await expect(index.liste('vermisst', 500)).resolves.toEqual([]);
+    const auskunft = await auskunftVon(SCHLUESSEL);
+    expect(auskunft.foto.vermisst).toBe(false);
+    expect(auskunft.foto.bewertung).toBe(5);
+    expect(auskunftText(auskunft)).toContain('Zustand: normal');
+  });
+
+  it('behaelt die Angaben eines vermissten Fotos', async () => {
+    await legeFotoAb();
+    await merkeGesehen();
+    await fuehreAbgleichAus({
+      wurzel,
+      index,
+      leser: leserMit({ [`${SCHLUESSEL}.xmp`]: { bewertung: 4, stichwoerter: ['Toskana'] } }),
+    });
+
+    await rm(imBaum(`${MONAT}/${SCHLUESSEL}.NEF`));
+    await rm(imBaum(`${MONAT}/${SCHLUESSEL}.xmp`));
+    await fuehreAbgleichAus({ wurzel, index, leser: leserMit({}) });
+
+    const auskunft = await auskunftVon(SCHLUESSEL);
+    expect(auskunft.foto.bewertung).toBe(4);
+    expect(auskunft.foto.stichwoerter).toEqual(['Toskana']);
+    expect(auskunftText(auskunft)).toContain('Zustand: vermisst');
+  });
+
+  it('kennt ein vermisstes Foto auch nach einem leeren Index wieder', async () => {
+    await merkeGesehen();
+
+    const lauf = await fuehreAbgleichAus({ wurzel, index, leser: leserMit({}) });
+
+    expect(lauf.fotos).toBe(1);
+    expect(lauf.vermisst).toBe(1);
+    expect((await auskunftVon(SCHLUESSEL)).foto.aufnahmezeit).toBe('2019-06-14 10:15:00');
   });
 
   it('kommt mit einem Baum ohne original-Verzeichnis zurecht', async () => {

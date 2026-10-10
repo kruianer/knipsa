@@ -10,6 +10,10 @@
  * Eine Datei, die seit dem letzten Lauf dieselbe Groesse und dieselbe
  * Aenderungszeit hat, wird nicht erneut gelesen. Dadurch kostet ein Lauf
  * ueber einen unveraenderten Baum nur je Datei ein `stat`.
+ *
+ * Welche Fotos es gibt, sagen Baum und Gesehen-Liste zusammen: ein
+ * Schluessel aus der Gesehen-Liste ohne Datei im Baum gilt als vermisst
+ * und bleibt im Index, bis die Datei wieder auftaucht.
  */
 
 import { readdir, stat } from 'node:fs/promises';
@@ -26,6 +30,7 @@ import {
   type DateiArt,
 } from '@knipsa/shared';
 
+import { GesehenListe } from './gesehen.js';
 import {
   type AbgleichLauf,
   type ArchivIndex,
@@ -185,6 +190,7 @@ export async function fuehreAbgleichAus({
   const bekannteDateien = new Map(alt.dateien.map((datei) => [datei.pfad, datei]));
   const bekannteFotos = new Map(alt.fotos.map((foto) => [foto.schluessel, foto]));
 
+  const gesehen = await GesehenListe.lade(wurzel);
   const { einheiten, unbekannte } = ordneEinheiten(await sammleBaum(wurzel));
 
   const fotos: IndexFoto[] = [];
@@ -237,6 +243,28 @@ export async function fuehreAbgleichAus({
       vermisst: false,
       ...(await leseAngaben(leser, fuehrend, sidecar)),
     });
+  }
+
+  // Vermisst ist jeder Schluessel aus der Gesehen-Liste, zu dem keine
+  // Datei mehr im Baum liegt. Das Foto bleibt im Index: es ist einmal
+  // importiert worden, und genau das soll zu sehen sein.
+  const gefunden = new Set(einheiten.map((einheit) => einheit.schluessel));
+  for (const schluessel of gesehen.alleSchluessel()) {
+    if (gefunden.has(schluessel)) {
+      continue;
+    }
+
+    const bekannt = bekannteFotos.get(schluessel);
+    fotos.push(
+      bekannt === undefined
+        ? {
+            schluessel,
+            aufnahmezeit: aufnahmezeitZu(schluessel),
+            vermisst: true,
+            ...KEINE_ANGABEN,
+          }
+        : { ...bekannt, vermisst: true },
+    );
   }
 
   const beendet = jetzt();

@@ -38,7 +38,7 @@ export interface TestDatenbank {
  */
 function pgliteDialekt(pg: PGlite): Dialect {
   const verbindung: DatabaseConnection = {
-    async executeQuery<R>(anfrage): Promise<QueryResult<R>> {
+    async executeQuery<R>(anfrage: CompiledQuery): Promise<QueryResult<R>> {
       const ergebnis = await pg.query<R>(anfrage.sql, [...anfrage.parameters]);
       return {
         rows: ergebnis.rows,
