@@ -1,4 +1,4 @@
-import { appendFile, mkdtemp, readdir, rm, stat, utimes } from 'node:fs/promises';
+import { appendFile, mkdtemp, readdir, readFile, rm, stat, utimes } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, posix } from 'node:path';
 
@@ -539,6 +539,64 @@ describe('Neu aufbauen', () => {
     await fuehreAbgleichAus({ wurzel, index, leser: leserMit({}), neuAufbauen: true });
 
     expect(await standDesBaums()).toEqual(vorher);
+  });
+});
+
+describe('der Foto-Baum bleibt unangetastet', () => {
+  /** Ein Baum mit allem, was req-007 kennt: NEF samt Sidecar, JPEG, HEIC. */
+  async function legeBaumAn(): Promise<void> {
+    await legeFotoAb();
+    await schreibeDatei(imBaum(`${MONAT}/20190614-101501a.JPG`), jpegBytes({ datum: AUFNAHME }));
+    await schreibeDatei(imBaum(`${MONAT}/20190614-101502a.HEIC`), heicBytes({ datum: AUFNAHME }));
+    await schreibeDatei(
+      imBaum('2019-06-14_toskana/20190614-101503a.NEF'),
+      nefBytes({ datum: AUFNAHME }),
+    );
+    await schreibeDatei(imBaum('2019-06-14_toskana/20190614-101503a.xmp'), xmpText(2));
+    await schreibeDatei(imBaum(`${MONAT}/urlaub.jpg`), jpegBytes({ datum: AUFNAHME }));
+    await merkeNefGesehen();
+  }
+
+  /** Der Inhalt der Gesehen-Liste, Zeile fuer Zeile. */
+  async function gesehenZeilen(): Promise<string> {
+    return readFile(join(wurzel, 'gesehen', 'gesehen.jsonl'), 'utf8');
+  }
+
+  it('veraendert bei Abgleich und Neuaufbau keine Datei und keinen Ordner', async () => {
+    await legeBaumAn();
+    const vorher = await standDesBaums();
+
+    await fuehreAbgleichAus({ wurzel, index, leser: leserMit({}) });
+    expect(await standDesBaums()).toEqual(vorher);
+
+    await fuehreAbgleichAus({ wurzel, index, leser: leserMit({}), neuAufbauen: true });
+    expect(await standDesBaums()).toEqual(vorher);
+  });
+
+  it('ergaenzt die Gesehen-Liste nur, statt sie zu aendern', async () => {
+    await legeBaumAn();
+    const vorher = await gesehenZeilen();
+
+    await fuehreAbgleichAus({ wurzel, index, leser: leserMit({}) });
+    const nachAbgleich = await gesehenZeilen();
+
+    // Neue Zeilen kommen hinten dazu, der Anfang bleibt Zeichen fuer Zeichen.
+    expect(nachAbgleich.startsWith(vorher)).toBe(true);
+    expect(nachAbgleich.length).toBeGreaterThan(vorher.length);
+
+    await fuehreAbgleichAus({ wurzel, index, leser: leserMit({}), neuAufbauen: true });
+
+    // Die Bild-Pruefsummen stehen schon da: der Neuaufbau aendert nichts.
+    expect(await gesehenZeilen()).toBe(nachAbgleich);
+  });
+
+  it('legt im Baum nichts Neues an', async () => {
+    await legeBaumAn();
+    const vorher = Object.keys(await standDesBaums()).sort();
+
+    await fuehreAbgleichAus({ wurzel, index, leser: leserMit({}) });
+
+    expect(Object.keys(await standDesBaums()).sort()).toEqual(vorher);
   });
 });
 

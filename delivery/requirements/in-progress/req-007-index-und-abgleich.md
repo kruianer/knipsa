@@ -79,7 +79,7 @@ statt es Jahre später zu bemerken.
 - [x] Given ein Import läuft, when ich "Neu aufbauen" drücke, then
   erscheint "Import läuft — bitte warten" und der Index bleibt
   unverändert.
-- [ ] Given ein Abgleich oder Neuaufbau läuft, when er fertig ist, then
+- [x] Given ein Abgleich oder Neuaufbau läuft, when er fertig ist, then
   ist KEIN Foto, Sidecar oder Ordner im Foto-Baum verändert (einzige
   erlaubte Änderung: neue Einträge in der Gesehen-Liste).
 
