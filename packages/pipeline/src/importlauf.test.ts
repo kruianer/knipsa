@@ -7,7 +7,13 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 
 import { fuehreLaufAus, type ErgebnisEintrag, type LaufErgebnis } from './importlauf.js';
 import { exiftoolLeser, type MetadatenLeser } from './metadaten.js';
-import { nefBytes, schreibeDatei, xmpText } from './test/testbilder.js';
+import {
+  jpegBytes,
+  kaputteJpegBytes,
+  nefBytes,
+  schreibeDatei,
+  xmpText,
+} from './test/testbilder.js';
 
 /**
  * Diese Tests laufen gegen echtes `exiftool` und echte Dateien in einem
@@ -174,6 +180,92 @@ describe('Fotos derselben Sekunde', () => {
 
     expect(zu(ergebnis, 'DSC_0901.NEF')?.schluessel).toBe('20190614-101605a');
     expect(zu(ergebnis, 'DSC_0902.NEF')?.schluessel).toBe('20190614-101605b');
+  });
+});
+
+describe('Problemfaelle', () => {
+  it('meldet ein JPEG ohne Aufnahmezeit mit dem Grund "keine Aufnahmezeit"', async () => {
+    await schreibeDatei(join(quelle.pfad, 'handy', 'IMG_4711.JPG'), jpegBytes());
+
+    const ergebnis = await lauf();
+
+    expect(zu(ergebnis, 'handy/IMG_4711.JPG')).toEqual({
+      art: 'problem',
+      quellPfad: 'handy/IMG_4711.JPG',
+      grund: 'keine Aufnahmezeit',
+    });
+    expect(ergebnis.problem).toBe(1);
+    expect(ergebnis.neu).toBe(0);
+  });
+
+  it('meldet ein Sidecar ohne NEF mit dem Grund "Sidecar ohne Foto"', async () => {
+    await schreibeDatei(join(quelle.pfad, 'Toskana 2019', 'DSC_0500.xmp'), xmpText(2));
+
+    const ergebnis = await lauf();
+
+    expect(zu(ergebnis, 'Toskana 2019/DSC_0500.xmp')).toEqual({
+      art: 'problem',
+      quellPfad: 'Toskana 2019/DSC_0500.xmp',
+      grund: 'Sidecar ohne Foto',
+    });
+  });
+
+  it('meldet eine beschaedigte Datei mit dem Grund "beschädigt"', async () => {
+    await schreibeDatei(join(quelle.pfad, 'kaputt.jpg'), kaputteJpegBytes());
+
+    const ergebnis = await lauf();
+
+    expect(zu(ergebnis, 'kaputt.jpg')?.grund).toBe('beschädigt');
+  });
+
+  it('legt die Datei als Kopie mit Begruendung nach eingang/problem', async () => {
+    await schreibeDatei(join(quelle.pfad, 'handy', 'IMG_4711.JPG'), jpegBytes());
+
+    await lauf();
+
+    const problem = join(wurzel, 'eingang', 'problem');
+    expect((await readdir(problem)).sort()).toEqual(['IMG_4711.JPG', 'IMG_4711.JPG.grund.txt']);
+    expect(await pruefsumme(join(problem, 'IMG_4711.JPG'))).toBe(
+      await pruefsumme(join(quelle.pfad, 'handy', 'IMG_4711.JPG')),
+    );
+    const grund = await readFile(join(problem, 'IMG_4711.JPG.grund.txt'), 'utf8');
+    expect(grund).toContain('Grund:     keine Aufnahmezeit');
+    expect(grund).toContain('Ursprung:  handy/IMG_4711.JPG');
+  });
+
+  it('legt eine identische Datei dort nicht ein zweites Mal ab', async () => {
+    await schreibeDatei(join(quelle.pfad, 'handy', 'IMG_4711.JPG'), jpegBytes());
+
+    await lauf();
+    const zweiter = await lauf();
+
+    const problem = join(wurzel, 'eingang', 'problem');
+    expect((await readdir(problem)).sort()).toEqual(['IMG_4711.JPG', 'IMG_4711.JPG.grund.txt']);
+    // Gezaehlt wird der Problemfall weiter — nur kopiert wird er nicht erneut.
+    expect(zweiter.problem).toBe(1);
+  });
+
+  it('legt eine andere Datei mit gleichem Namen daneben, statt sie zu ersetzen', async () => {
+    await schreibeDatei(join(quelle.pfad, 'a', 'IMG_4711.JPG'), jpegBytes());
+    await schreibeDatei(join(quelle.pfad, 'b', 'IMG_4711.JPG'), jpegBytes({ fuellung: 4 }));
+
+    const ergebnis = await lauf();
+
+    expect(ergebnis.problem).toBe(2);
+    expect((await readdir(join(wurzel, 'eingang', 'problem'))).sort()).toEqual([
+      'IMG_4711-2.JPG',
+      'IMG_4711-2.JPG.grund.txt',
+      'IMG_4711.JPG',
+      'IMG_4711.JPG.grund.txt',
+    ]);
+  });
+
+  it('nimmt einen Problemfall nicht in die Gesehen-Liste auf', async () => {
+    await schreibeDatei(join(quelle.pfad, 'handy', 'IMG_4711.JPG'), jpegBytes());
+
+    await lauf();
+
+    expect(await existiert(join(wurzel, 'gesehen', 'gesehen.jsonl'))).toBe(false);
   });
 });
 

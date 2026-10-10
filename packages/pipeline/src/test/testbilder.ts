@@ -168,16 +168,19 @@ function huffmanTabelle(): Buffer {
 }
 
 /**
- * Ein JPEG mit einem Bildpunkt. Ohne `angaben` enthaelt es kein EXIF und
+ * Ein JPEG mit einem Bildpunkt. Ohne `datum` enthaelt es kein EXIF und
  * damit keine Aufnahmezeit — das ist der Problemfall "keine Aufnahmezeit".
  */
-export function jpegBytes(angaben?: BildAngaben): Buffer {
+export function jpegBytes(angaben: Partial<BildAngaben> = {}): Buffer {
   const app1 =
-    angaben === undefined
+    angaben.datum === undefined
       ? Buffer.alloc(0)
       : jpegAbschnitt(
           0xe1,
-          Buffer.concat([Buffer.from('Exif\0\0', 'ascii'), tiffBlock(angaben, false)]),
+          Buffer.concat([
+            Buffer.from('Exif\0\0', 'ascii'),
+            tiffBlock({ ...angaben, datum: angaben.datum }, false),
+          ]),
         );
 
   return Buffer.concat([
@@ -188,7 +191,7 @@ export function jpegBytes(angaben?: BildAngaben): Buffer {
     jpegAbschnitt(0xc4, Buffer.concat([Buffer.from([0x00]), huffmanTabelle()])), // DHT (DC)
     jpegAbschnitt(0xc4, Buffer.concat([Buffer.from([0x10]), huffmanTabelle()])), // DHT (AC)
     jpegAbschnitt(0xda, Buffer.from([0x01, 0x01, 0x00, 0x00, 0x3f, 0x00])), // SOS
-    Buffer.alloc(1 + (angaben?.fuellung ?? 0), 0x0f), // Bilddaten
+    Buffer.alloc(1 + (angaben.fuellung ?? 0), 0x0f), // Bilddaten
     Buffer.from([0xff, 0xd9]), // EOI
   ]);
 }

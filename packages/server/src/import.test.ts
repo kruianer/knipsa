@@ -22,6 +22,7 @@ function ergebnis(quelle: string): LaufErgebnis {
     gesamt: 1,
     neu: 1,
     bekannt: 0,
+    problem: 0,
     dateien: [
       {
         art: 'neu',

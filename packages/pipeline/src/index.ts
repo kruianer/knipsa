@@ -25,6 +25,9 @@ export {
 export {
   fuehreLaufAus,
   sammleDateien,
+  GRUND_BESCHAEDIGT,
+  GRUND_KEINE_AUFNAHMEZEIT,
+  GRUND_SIDECAR_OHNE_FOTO,
   type ErgebnisArt,
   type ErgebnisEintrag,
   type Fortschritt,
@@ -41,3 +44,4 @@ export {
   type MetadatenLeser,
 } from './metadaten.js';
 export { protokollText, schreibeProtokoll } from './protokoll.js';
+export { legeProblemAb, type ProblemAblage, type ProblemAblageOptionen } from './problem.js';

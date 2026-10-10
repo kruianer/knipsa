@@ -31,10 +31,16 @@ import {
 
 import { GesehenListe, type GesehenEintrag } from './gesehen.js';
 import type { MetadatenLeser } from './metadaten.js';
+import { legeProblemAb } from './problem.js';
 import { schreibeProtokoll } from './protokoll.js';
 
 /** Wie eine Datei im Ergebnis eines Laufs gezaehlt wird. */
-export type ErgebnisArt = 'neu' | 'bekannt';
+export type ErgebnisArt = 'neu' | 'bekannt' | 'problem';
+
+/** Begruendungen fuer einen Problemfall — Wortlaut wie auf der Seite. */
+export const GRUND_KEINE_AUFNAHMEZEIT = 'keine Aufnahmezeit';
+export const GRUND_SIDECAR_OHNE_FOTO = 'Sidecar ohne Foto';
+export const GRUND_BESCHAEDIGT = 'beschädigt';
 
 /** Eine Datei im Ergebnis eines Laufs. */
 export interface ErgebnisEintrag {
@@ -45,6 +51,8 @@ export interface ErgebnisEintrag {
   readonly schluessel?: string;
   /** Ablage im Baum ab `_wartend`, nur bei `neu`. */
   readonly ablage?: string;
+  /** Begruendung, nur bei `problem`. */
+  readonly grund?: string;
 }
 
 /** Das Ergebnis eines Laufs, so wie die Seite "Import" es zeigt. */
@@ -58,6 +66,7 @@ export interface LaufErgebnis {
   readonly gesamt: number;
   readonly neu: number;
   readonly bekannt: number;
+  readonly problem: number;
   readonly dateien: readonly ErgebnisEintrag[];
   /** Pfad des Protokolls im Foto-Baum, relativ zur Wurzel. */
   readonly protokoll: string;
@@ -174,6 +183,21 @@ function sidecarsZu(foto: Quelldatei, dateien: readonly Quelldatei[]): Quelldate
   );
 }
 
+/**
+ * `true`, wenn im selben Ordner eine NEF mit demselben Grundnamen liegt.
+ * Nur dann gehoert ein Sidecar zu einem Foto.
+ */
+function hatEigeneNef(sidecar: Quelldatei, dateien: readonly Quelldatei[]): boolean {
+  const basis = grundname(sidecar.dateiname);
+
+  return dateien.some(
+    (datei) =>
+      datei.art === 'raw' &&
+      datei.ordner === sidecar.ordner &&
+      grundname(datei.dateiname) === basis,
+  );
+}
+
 function protokollName(quelle: string, jetzt: Date): string {
   const zeit = jetzt.toISOString().replaceAll(/[-:]/g, '').replace('T', '-').slice(0, 15);
   const name = quelle.replaceAll(/[^A-Za-z0-9_-]/g, '_');
@@ -205,12 +229,38 @@ export async function fuehreLaufAus({
     melde?.({ erledigt, gesamt });
   };
 
+  /** Legt eine Datei als Problemfall ab und vermerkt sie im Ergebnis. */
+  const alsProblem = async (datei: Quelldatei, summe: string, grund: string): Promise<void> => {
+    await legeProblemAb({
+      wurzel,
+      pfad: datei.pfad,
+      dateiname: datei.dateiname,
+      summe,
+      grund,
+      quelle: quelle.name,
+      quellPfad: datei.quellPfad,
+      zeitpunkt: jetzt().toISOString(),
+    });
+
+    ergebnisse.set(datei.quellPfad, { art: 'problem', quellPfad: datei.quellPfad, grund });
+    abgeschlossen();
+  };
+
   // Erster Durchgang: einordnen, Pruefsummen bilden, Aufnahmezeit lesen.
   const einheiten: Einheit[] = [];
   for (const datei of dateien) {
+    if (datei.art === 'sidecar') {
+      // Ein Sidecar ohne eigene NEF gehoert zu keinem Foto. Mit NEF geht
+      // es als Teil ihrer Einheit mit.
+      if (!hatEigeneNef(datei, dateien)) {
+        await alsProblem(datei, await pruefsumme(datei.pfad), GRUND_SIDECAR_OHNE_FOTO);
+      }
+      continue;
+    }
+
     if (!istFoto(datei.art)) {
-      // Sidecars gehen mit ihrem Foto, alles andere kommt in einer
-      // spaeteren Etappe als "uebersprungen" dazu.
+      // Videos und andere Dateitypen kommen in einer spaeteren Etappe
+      // als "uebersprungen" dazu.
       continue;
     }
 
@@ -242,8 +292,14 @@ export async function fuehreLaufAus({
       continue;
     }
 
+    const eigeneSumme = teile[0]?.summe ?? '';
     const zeit = await leser.leseAufnahmezeit(datei.pfad);
-    if (zeit.art !== 'gelesen') {
+    if (zeit.art === 'beschaedigt') {
+      await alsProblem(datei, eigeneSumme, GRUND_BESCHAEDIGT);
+      continue;
+    }
+    if (zeit.art === 'keineZeit') {
+      await alsProblem(datei, eigeneSumme, GRUND_KEINE_AUFNAHMEZEIT);
       continue;
     }
 
@@ -288,6 +344,7 @@ export async function fuehreLaufAus({
     gesamt,
     neu: geordnet.filter((eintrag) => eintrag.art === 'neu').length,
     bekannt: geordnet.filter((eintrag) => eintrag.art === 'bekannt').length,
+    problem: geordnet.filter((eintrag) => eintrag.art === 'problem').length,
     dateien: geordnet,
     protokoll: posix.join('protokoll', 'import', protokollName(quelle.name, begonnen)),
   };

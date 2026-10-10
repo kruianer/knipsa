@@ -73,10 +73,10 @@ Quelle bleibt dabei unangetastet.
 - [x] Given dieselbe Datei liegt umbenannt als `kopie.NEF` in einem
   anderen Unterordner der Quelle, when ich importiere, then gilt sie als
   "schon bekannt".
-- [ ] Given ein JPEG ohne gespeicherte Aufnahmezeit, when ich importiere,
+- [x] Given ein JPEG ohne gespeicherte Aufnahmezeit, when ich importiere,
   then erscheint es im Ergebnis als Problem mit dem Grund "keine
   Aufnahmezeit".
-- [ ] Given `DSC_0500.xmp` ohne zugehörige NEF, when ich importiere, then
+- [x] Given `DSC_0500.xmp` ohne zugehörige NEF, when ich importiere, then
   erscheint sie als Problem mit dem Grund "Sidecar ohne Foto".
 - [ ] Given `IMG_0001.MOV` und `DSC_0413.JPG` neben `DSC_0413.NEF`, when
   ich importiere, then erscheinen beide als "übersprungen" mit ihrem Grund.

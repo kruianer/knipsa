@@ -101,9 +101,10 @@ describe('Ergebnis', () => {
             quelle: 'Test',
             begonnen: '2026-10-10T08:00:00.000Z',
             beendet: '2026-10-10T08:00:05.000Z',
-            gesamt: 2,
+            gesamt: 3,
             neu: 1,
             bekannt: 1,
+            problem: 1,
             dateien: [
               {
                 art: 'neu',
@@ -116,6 +117,11 @@ describe('Ergebnis', () => {
                 quellPfad: 'Toskana 2019/DSC_0413.NEF',
                 schluessel: '20190614-101502a',
               },
+              {
+                art: 'problem',
+                quellPfad: 'handy/IMG_4711.JPG',
+                grund: 'keine Aufnahmezeit',
+              },
             ],
             protokoll: 'protokoll/import/20261010-080000-Test.log',
           },
@@ -126,7 +132,9 @@ describe('Ergebnis', () => {
 
     const lauf = bereich.querySelector('.lauf');
     expect(lauf?.querySelector('summary')?.textContent).toContain('Test');
-    expect(lauf?.querySelector('summary')?.textContent).toContain('1 neu, 1 schon bekannt');
+    expect(lauf?.querySelector('summary')?.textContent).toContain(
+      '1 neu, 1 schon bekannt, 1 Problem',
+    );
 
     const zeilen = lauf?.querySelectorAll('.lauf-dateien li') ?? [];
     expect(zeilen[0]?.textContent).toBe(
@@ -135,5 +143,6 @@ describe('Ergebnis', () => {
     expect(zeilen[1]?.textContent).toBe(
       'Toskana 2019/DSC_0413.NEF → schon bekannt als 20190614-101502a',
     );
+    expect(zeilen[2]?.textContent).toBe('handy/IMG_4711.JPG → Problem: keine Aufnahmezeit');
   });
 });

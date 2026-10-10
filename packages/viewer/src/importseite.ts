@@ -27,6 +27,7 @@ export interface ErgebnisEintrag {
   readonly quellPfad: string;
   readonly schluessel?: string;
   readonly ablage?: string;
+  readonly grund?: string;
 }
 
 /** Das Ergebnis eines Laufs. */
@@ -37,6 +38,7 @@ export interface LaufErgebnis {
   readonly gesamt: number;
   readonly neu: number;
   readonly bekannt: number;
+  readonly problem: number;
   readonly dateien: readonly ErgebnisEintrag[];
   readonly protokoll: string;
 }
@@ -76,10 +78,14 @@ export function zeitText(iso: string): string {
 }
 
 function zeileZu(eintrag: ErgebnisEintrag): string {
-  if (eintrag.art === 'neu') {
-    return `${eintrag.quellPfad} → ${eintrag.ablage ?? ''}`;
+  switch (eintrag.art) {
+    case 'neu':
+      return `${eintrag.quellPfad} → ${eintrag.ablage ?? ''}`;
+    case 'problem':
+      return `${eintrag.quellPfad} → Problem: ${eintrag.grund ?? ''}`;
+    default:
+      return `${eintrag.quellPfad} → schon bekannt als ${eintrag.schluessel ?? ''}`;
   }
-  return `${eintrag.quellPfad} → schon bekannt als ${eintrag.schluessel ?? ''}`;
 }
 
 function zeichneQuelle(
@@ -116,7 +122,7 @@ function zeichneLauf(dokument: Document, lauf: LaufErgebnis): HTMLElement {
   const kopf = element(dokument, 'summary');
   kopf.textContent =
     `${lauf.quelle} — ${zeitText(lauf.begonnen)} — ` +
-    `${lauf.neu} neu, ${lauf.bekannt} schon bekannt`;
+    `${lauf.neu} neu, ${lauf.bekannt} schon bekannt, ${lauf.problem} Problem`;
 
   const liste = element(dokument, 'ul', 'lauf-dateien');
   for (const eintrag of lauf.dateien) {
