@@ -36,6 +36,12 @@ export interface Konfiguration {
    * leer — dann zeigt die Seite "Import" keine Quelle an.
    */
   readonly importQuellen: readonly QuellenEinstellung[];
+  /**
+   * Ordner, unter dem eingesteckte Datentraeger eingehaengt erscheinen,
+   * aus `DATENTRAEGER_PFAD` (im Container `/datentraeger`, req-006). Ohne
+   * Angabe leer — dann zeigt die Seite "Import" keinen Datentraeger an.
+   */
+  readonly datentraegerPfad: string;
 }
 
 /** Eine Umgebungsvariable fehlt oder hat einen unbrauchbaren Wert. */
@@ -115,6 +121,22 @@ function quellen(env: UmgebungsVariablen, variable: string): QuellenEinstellung[
 }
 
 /**
+ * Liest einen Pfad, der nicht gesetzt sein muss. Ist er gesetzt, muss er
+ * absolut sein — ein relativer Pfad zeigt im Container irgendwohin.
+ */
+function freiwilligerPfad(env: UmgebungsVariablen, variable: string): string {
+  const pfad = env[variable]?.trim();
+  if (pfad === undefined || pfad === '') {
+    return '';
+  }
+  if (!pfad.startsWith('/')) {
+    throw new KonfigurationsFehler(variable, 'muss ein absoluter Pfad sein');
+  }
+
+  return pfad;
+}
+
+/**
  * Liest die Konfiguration und prueft sie vollstaendig. Fehlt etwas, wird
  * sofort geworfen — der Server startet dann nicht mit halber Konfiguration.
  */
@@ -132,5 +154,6 @@ export function leseKonfiguration(env: UmgebungsVariablen = process.env): Konfig
     serverHost: pflichtText(env, 'SERVER_HOST'),
     serverPort: pflichtPort(env, 'SERVER_PORT'),
     importQuellen: quellen(env, 'IMPORT_QUELLEN'),
+    datentraegerPfad: freiwilligerPfad(env, 'DATENTRAEGER_PFAD'),
   };
 }

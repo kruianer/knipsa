@@ -34,6 +34,8 @@ Getrennte Umgebungen auf demselben Host:
 | Runner | `beelink-knipsa` (`runs-on: [self-hosted, knipsa]`), `~/actions-runner-knipsa` | dto. |
 | Import-Quellen (req-005) | `Test` = `/home/kruianer/knipsa-quellen/test` (nur lesend einbinden) | noch keine |
 | &nbsp;&nbsp;↳ env-Variablen dazu | `QUELLEN_ROOT=/home/kruianer/knipsa-quellen`, `IMPORT_QUELLEN=Test=/quellen/test` | `QUELLEN_ROOT` auf einen leeren Ordner, `IMPORT_QUELLEN=` leer |
+| Datenträger (req-006) | Einhängepunkte `/media/knipsa` (Host-Automount, nur lesend) | dto. |
+| &nbsp;&nbsp;↳ env-Variablen dazu | `DATENTRAEGER_ROOT=/media/knipsa` | `DATENTRAEGER_ROOT=/media/knipsa` |
 | Gesehen-Liste | im Test-Baum | im echten Baum (wird gesichert) |
 
 - Die Quellen werden unter `/quellen` nur lesend eingebunden; der

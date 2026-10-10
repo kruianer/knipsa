@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 
-import { starteSeite, zeichneSeite } from './seite.js';
+import { starteSeite, zeichneSeite, type SeiteOptionen } from './seite.js';
 
 function antwort(koerper: unknown, status = 200): Response {
   return new Response(JSON.stringify(koerper), {
@@ -38,6 +38,22 @@ beforeEach(() => {
   document.body.innerHTML = '<main id="app"></main>';
 });
 
+/**
+ * Baut die Seite auf und beendet das Abfragen danach. Im Browser fragt
+ * die Seite endlos weiter; der Test will nach dem ersten Durchgang
+ * nachsehen und braucht dabei keine echte Wartezeit.
+ */
+function oeffne(
+  abrufen: (url: string) => Promise<Response>,
+  optionen: SeiteOptionen = {},
+): Promise<void> {
+  return starteSeite(document, abrufen, {
+    warte: () => Promise.resolve(),
+    weiter: () => false,
+    ...optionen,
+  });
+}
+
 function seite(): HTMLElement {
   const wurzel = document.querySelector<HTMLElement>('#app');
   if (wurzel === null) {
@@ -48,7 +64,7 @@ function seite(): HTMLElement {
 
 describe('starteSeite', () => {
   it('zeigt Knipsa, die Umgebung dev und eine gruene Ampel', async () => {
-    await starteSeite(document, server({ umgebung: 'dev' }));
+    await oeffne(server({ umgebung: 'dev' }));
 
     const wurzel = seite();
     expect(wurzel.querySelector('h1')?.textContent).toBe('Knipsa');
@@ -58,16 +74,13 @@ describe('starteSeite', () => {
   });
 
   it('zeigt prod, wenn der Server prod meldet', async () => {
-    await starteSeite(document, server({ umgebung: 'prod' }));
+    await oeffne(server({ umgebung: 'prod' }));
 
     expect(seite().querySelector<HTMLElement>('.umgebung')?.dataset.umgebung).toBe('prod');
   });
 
   it('zeigt eine rote Ampel, wenn ready 503 meldet', async () => {
-    await starteSeite(
-      document,
-      server({ ready: { status: 503, koerper: { datenbank: 'fehler', fotos: 'ok' } } }),
-    );
+    await oeffne(server({ ready: { status: 503, koerper: { datenbank: 'fehler', fotos: 'ok' } } }));
 
     const wurzel = seite();
     expect(wurzel.querySelector<HTMLElement>('.ampel')?.dataset.ampel).toBe('rot');
@@ -75,13 +88,13 @@ describe('starteSeite', () => {
   });
 
   it('zeigt eine gelbe Ampel, wenn der Server nicht antwortet', async () => {
-    await starteSeite(document, server({ fehlerBei: '/health/ready' }));
+    await oeffne(server({ fehlerBei: '/health/ready' }));
 
     expect(seite().querySelector<HTMLElement>('.ampel')?.dataset.ampel).toBe('gelb');
   });
 
   it('zeigt unbekannt, wenn die Umgebungs-Auskunft fehlt', async () => {
-    await starteSeite(document, server({ fehlerBei: '/api/umgebung' }));
+    await oeffne(server({ fehlerBei: '/api/umgebung' }));
 
     expect(seite().querySelector('.umgebung')?.textContent).toBe('Umgebung: unbekannt');
   });
@@ -97,11 +110,10 @@ describe('starteSeite', () => {
   });
 
   it('haengt den Bereich Import mit den Quellen des Servers an', async () => {
-    await starteSeite(
-      document,
+    await oeffne(
       server({
         import: {
-          quellen: [{ name: 'Test', verfuegbar: true }],
+          quellen: [{ name: 'Test', anzeige: 'Test', art: 'ordner', verfuegbar: true }],
           laeufe: [],
         },
       }),
@@ -110,5 +122,64 @@ describe('starteSeite', () => {
     const bereich = seite().querySelector('#import');
     expect(bereich?.querySelector('h2')?.textContent).toBe('Import');
     expect(bereich?.querySelector('.quelle-name')?.textContent).toBe('Test');
+  });
+});
+
+describe('eingesteckte Datentraeger', () => {
+  /** Server, dessen Quellen-Liste sich von Abfrage zu Abfrage aendert. */
+  function wechselnd(folge: readonly unknown[]): (url: string) => Promise<Response> {
+    let stelle = 0;
+    return (url) => {
+      if (url === '/api/import') {
+        const quellen = folge[Math.min(stelle, folge.length - 1)];
+        stelle += 1;
+        return Promise.resolve(antwort({ quellen, laeufe: [] }));
+      }
+      return server({})(url);
+    };
+  }
+
+  const karte = {
+    name: 'NIKON D750',
+    anzeige: 'NIKON D750 (64 GB)',
+    art: 'datentraeger',
+    verfuegbar: true,
+  };
+
+  it('zeigt eine eingesteckte Karte ohne Neuladen mit Bezeichnung und Groesse', async () => {
+    // Beim Aufbau ist nichts eingesteckt, bei der naechsten Abfrage schon.
+    let runden = 0;
+    await oeffne(wechselnd([[], [karte]]), { weiter: () => (runden += 1) <= 1 });
+
+    const zeile = seite().querySelector<HTMLElement>('.quelle');
+    expect(zeile?.dataset.quelle).toBe('NIKON D750');
+    expect(zeile?.dataset.art).toBe('datentraeger');
+    expect(zeile?.querySelector('.quelle-name')?.textContent).toBe('NIKON D750 (64 GB)');
+  });
+
+  it('nimmt eine herausgezogene Karte ohne Neuladen wieder aus der Liste', async () => {
+    let runden = 0;
+    await oeffne(wechselnd([[karte], []]), { weiter: () => (runden += 1) <= 1 });
+
+    expect(seite().querySelectorAll('.quelle')).toHaveLength(0);
+    expect(seite().querySelector('.quellen-leer')?.textContent).toBe('Keine Quelle eingestellt');
+  });
+
+  it('fragt im Leerlauf oefter als alle 10 Sekunden nach den Quellen', async () => {
+    const takte: number[] = [];
+    let runden = 0;
+
+    await oeffne(wechselnd([[]]), {
+      warte: (ms) => {
+        takte.push(ms);
+        return Promise.resolve();
+      },
+      weiter: () => (runden += 1) <= 2,
+    });
+
+    expect(takte).toHaveLength(2);
+    for (const takt of takte) {
+      expect(takt).toBeLessThan(10_000);
+    }
   });
 });

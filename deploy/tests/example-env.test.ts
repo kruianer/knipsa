@@ -16,6 +16,8 @@ const erwarteteVariablen = [
   // req-005
   'QUELLEN_ROOT',
   'IMPORT_QUELLEN',
+  // req-006
+  'DATENTRAEGER_ROOT',
 ];
 
 const zeilen = leseDatei('deploy/example.env')

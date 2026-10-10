@@ -10,6 +10,10 @@
 /** Eine Quelle, wie der Server sie meldet. */
 export interface QuellenZustand {
   readonly name: string;
+  /** Beschriftung; bei Datentraegern mit Groesse. Fehlt sie, gilt der Name. */
+  readonly anzeige?: string;
+  /** `ordner` oder `datentraeger`; ohne Angabe ein eingestellter Ordner. */
+  readonly art?: string;
   readonly verfuegbar: boolean;
 }
 
@@ -99,9 +103,10 @@ function zeichneQuelle(
 ): HTMLElement {
   const zeile = element(dokument, 'li', 'quelle');
   zeile.dataset.quelle = quelle.name;
+  zeile.dataset.art = quelle.art ?? 'ordner';
 
   const name = element(dokument, 'span', 'quelle-name');
-  name.textContent = quelle.name;
+  name.textContent = quelle.anzeige ?? quelle.name;
 
   const zustand = element(dokument, 'span', 'quelle-zustand');
   zustand.textContent = quelle.verfuegbar ? 'verfügbar' : 'nicht verfügbar';

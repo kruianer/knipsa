@@ -2,7 +2,7 @@ import { mkdtemp, readdir, readFile, rm, stat } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import { existiert, pruefsumme, type QuellenEinstellung } from '@knipsa/shared';
+import { existiert, pruefsumme } from '@knipsa/shared';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 
 import {
@@ -10,6 +10,7 @@ import {
   sammleDateien,
   type ErgebnisEintrag,
   type LaufErgebnis,
+  type Quelle,
 } from './importlauf.js';
 import { exiftoolLeser, type MetadatenLeser } from './metadaten.js';
 import {
@@ -36,12 +37,12 @@ afterAll(async () => {
 });
 
 let wurzel: string;
-let quelle: QuellenEinstellung;
+let quelle: Quelle;
 
 beforeEach(async () => {
   const platz = await mkdtemp(join(tmpdir(), 'knipsa-import-'));
   wurzel = join(platz, 'fotos');
-  quelle = { name: 'Test', pfad: join(platz, 'quelle') };
+  quelle = { name: 'Test', pfad: join(platz, 'quelle'), art: 'ordner' };
 });
 
 function lauf(): Promise<LaufErgebnis> {

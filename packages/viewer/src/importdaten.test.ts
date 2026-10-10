@@ -30,13 +30,22 @@ const laufend = { quelle: 'Test', begonnen: '2026-10-10T08:00:00.000Z', erledigt
 /** Wartefunktion, die nicht wirklich wartet. */
 const sofort = (): Promise<void> => Promise.resolve();
 
+/**
+ * Laesst genau `runden` weitere Abfragen zu. Im Browser fragt die Seite
+ * endlos weiter; der Test will nach wenigen Durchgaengen nachsehen.
+ */
+function hoechstens(runden: number): () => boolean {
+  let gezaehlt = 0;
+  return () => (gezaehlt += 1) <= runden;
+}
+
 describe('Fortschritt nach dem Neuladen', () => {
   it('zeigt "x von y Dateien" allein aus der Antwort des Servers', async () => {
     // Frisch geladene Seite: kein Wissen aus dem Browser, nur /api/import.
     await fuehreImportBereich(
       bereich,
       () => Promise.resolve(antwort({ quellen, laufend: undefined, laeufe: [] })),
-      { warte: sofort },
+      { warte: sofort, weiter: () => false },
     );
     expect(bereich.querySelector('.import-fortschritt')).toBeNull();
 
@@ -45,12 +54,12 @@ describe('Fortschritt nach dem Neuladen', () => {
       bereich,
       () => {
         antworten += 1;
-        // Beim zweiten Abruf ist der Lauf fertig, damit die Verfolgung endet.
+        // Beim zweiten Abruf ist der Lauf fertig.
         return Promise.resolve(
           antwort({ quellen, laufend: antworten === 1 ? laufend : undefined, laeufe: [] }),
         );
       },
-      { warte: sofort },
+      { warte: sofort, weiter: hoechstens(1) },
     );
 
     expect(antworten).toBe(2);
@@ -80,10 +89,37 @@ describe('Fortschritt nach dem Neuladen', () => {
           expect(text).toBe(antworten === 1 ? 'Test: 7 von 42 Dateien' : 'Test: 19 von 42 Dateien');
           return Promise.resolve();
         },
+        weiter: hoechstens(2),
       },
     );
 
     expect(antworten).toBe(3);
+  });
+
+  it('fragt waehrend eines Laufs im engeren Takt als im Leerlauf', async () => {
+    const takte: number[] = [];
+    let antworten = 0;
+
+    await fuehreImportBereich(
+      bereich,
+      () => {
+        antworten += 1;
+        return Promise.resolve(
+          antwort({ quellen, laufend: antworten === 1 ? laufend : undefined, laeufe: [] }),
+        );
+      },
+      {
+        warte: (ms) => {
+          takte.push(ms);
+          return Promise.resolve();
+        },
+        weiter: hoechstens(2),
+      },
+    );
+
+    // Erst wartet die Seite im Takt des Fortschritts, nach dem Ende des
+    // Laufs wieder im Takt der Quellen.
+    expect(takte[0]).toBeLessThan(takte[1] ?? 0);
   });
 });
 
@@ -98,7 +134,7 @@ describe('zweiter Import', () => {
       return Promise.resolve(antwort({ quellen, laeufe: [] }));
     };
 
-    await fuehreImportBereich(bereich, abrufen, { warte: sofort });
+    await fuehreImportBereich(bereich, abrufen, { warte: sofort, weiter: () => false });
     bereich.querySelectorAll<HTMLButtonElement>('.quelle-start')[1]?.click();
 
     await vi.waitFor(() => {
@@ -115,7 +151,7 @@ describe('zweiter Import', () => {
       return Promise.resolve(antwort({ quellen, laeufe: [] }));
     };
 
-    await fuehreImportBereich(bereich, abrufen, { warte: sofort });
+    await fuehreImportBereich(bereich, abrufen, { warte: sofort, weiter: () => false });
     bereich.querySelector<HTMLButtonElement>('.quelle-start')?.click();
 
     await vi.waitFor(() => {

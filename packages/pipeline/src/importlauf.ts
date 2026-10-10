@@ -37,6 +37,17 @@ import { raeumeTeileAuf } from './teilaufraeumen.js';
 /** Wie eine Datei im Ergebnis eines Laufs gezaehlt wird. */
 export type ErgebnisArt = 'neu' | 'bekannt' | 'uebersprungen' | 'problem';
 
+/** Art einer Quelle: eingestellter Ordner oder eingesteckter Datentraeger. */
+export type QuellenArt = 'ordner' | 'datentraeger';
+
+/**
+ * Die Quelle eines Laufs. Eingestellte Ordner kommen aus
+ * `IMPORT_QUELLEN` (req-005), Datentraeger vom Einhaengepunkt (req-006).
+ */
+export interface Quelle extends QuellenEinstellung {
+  readonly art: QuellenArt;
+}
+
 /** Begruendungen fuer einen Problemfall — Wortlaut wie auf der Seite. */
 export const GRUND_KEINE_AUFNAHMEZEIT = 'keine Aufnahmezeit';
 export const GRUND_SIDECAR_OHNE_FOTO = 'Sidecar ohne Foto';
@@ -89,7 +100,7 @@ export interface Fortschritt {
 export interface LaufOptionen {
   /** Wurzel des Foto-Baums. */
   readonly wurzel: string;
-  readonly quelle: QuellenEinstellung;
+  readonly quelle: Quelle;
   readonly leser: MetadatenLeser;
   /** Wird nach jeder Datei gerufen. */
   readonly melde?: (fortschritt: Fortschritt) => void;
@@ -393,7 +404,7 @@ export async function fuehreLaufAus({
 
 interface UebernahmeOptionen {
   readonly wurzel: string;
-  readonly quelle: QuellenEinstellung;
+  readonly quelle: Quelle;
   readonly einheit: Einheit;
   readonly schluessel: string;
   readonly gesehen: GesehenListe;

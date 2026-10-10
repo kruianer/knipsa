@@ -30,14 +30,29 @@ export function zeichneSeite(wurzel: Element, zustand: Zustand): void {
 
 type Abrufen = (url: string, optionen?: RequestInit) => Promise<Response>;
 
-/** Abstand zwischen zwei Abfragen des Fortschritts. */
+/** Abstand zwischen zwei Abfragen, solange ein Import laeuft. */
 export const FORTSCHRITT_TAKT_MS = 1000;
 
+/**
+ * Abstand zwischen zwei Abfragen, wenn kein Import laeuft. Damit stehen
+ * eingesteckte Datentraeger deutlich schneller als in den verlangten 10
+ * Sekunden in der Liste und herausgezogene verschwinden wieder (req-006)
+ * — ohne dass die Seite neu geladen wird.
+ */
+export const QUELLEN_TAKT_MS = 3000;
+
 export interface SeiteOptionen {
-  /** Wartezeit zwischen zwei Abfragen; in Tests kurz. */
+  /** Wartezeit waehrend eines Laufs; in Tests kurz. */
   readonly taktMs?: number;
+  /** Wartezeit im Leerlauf; in Tests kurz. */
+  readonly quellenTaktMs?: number;
   /** Wartefunktion; in Tests ersetzbar. */
   readonly warte?: (ms: number) => Promise<void>;
+  /**
+   * Solange das `true` ergibt, wird weiter abgefragt. Im Browser laeuft
+   * das endlos; Tests beenden damit nach wenigen Durchgaengen.
+   */
+  readonly weiter?: () => boolean;
 }
 
 function schlafe(ms: number): Promise<void> {
@@ -73,42 +88,42 @@ export async function starteSeite(
 }
 
 /**
- * Haelt den Bereich "Import" aktuell. Kehrt zurueck, sobald kein Import
- * mehr laeuft — danach gibt es nichts zu beobachten, und die Seite fragt
- * erst beim naechsten Knopfdruck wieder nach.
+ * Haelt den Bereich "Import" aktuell: im Leerlauf, damit ein- und
+ * ausgesteckte Datentraeger von selbst erscheinen und verschwinden,
+ * waehrend eines Laufs im engeren Takt des Fortschritts.
  */
 export async function fuehreImportBereich(
   bereich: Element,
   abrufen: Abrufen,
-  { taktMs = FORTSCHRITT_TAKT_MS, warte = schlafe }: SeiteOptionen = {},
+  {
+    taktMs = FORTSCHRITT_TAKT_MS,
+    quellenTaktMs = QUELLEN_TAKT_MS,
+    warte = schlafe,
+    weiter = () => true,
+  }: SeiteOptionen = {},
 ): Promise<void> {
   // Die Meldung des Servers (zum Beispiel "Import läuft bereits") bleibt
   // stehen, bis der naechste Knopfdruck sie ersetzt — die Abfragen des
   // Fortschritts dazwischen duerfen sie nicht wegwischen.
   let meldung: string | undefined;
+  let letzter: ImportZustand = IMPORT_UNBEKANNT;
 
   const zeige = (zustand: ImportZustand): void => {
+    letzter = zustand;
     zeichneImport(bereich, meldung === undefined ? zustand : { ...zustand, meldung }, (name) => {
       void (async () => {
         const nachher = await starteImport(abrufen, name);
         meldung = nachher.meldung;
         zeige(nachher);
-        await verfolge();
       })();
     });
   };
 
-  const verfolge = async (): Promise<void> => {
-    let zustand = await holeImportZustand(abrufen);
-    zeige(zustand);
-
-    while (zustand.laufend !== undefined) {
-      await warte(taktMs);
-      zustand = await holeImportZustand(abrufen);
-      zeige(zustand);
-    }
-  };
-
   zeige(IMPORT_UNBEKANNT);
-  await verfolge();
+  zeige(await holeImportZustand(abrufen));
+
+  while (weiter()) {
+    await warte(letzter.laufend === undefined ? quellenTaktMs : taktMs);
+    zeige(await holeImportZustand(abrufen));
+  }
 }

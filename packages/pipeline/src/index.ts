@@ -23,6 +23,13 @@ export {
   type QuellenZustand,
 } from './importdienst.js';
 export {
+  findeDatentraeger,
+  groesseText,
+  istEingehaengt,
+  type Datentraeger,
+  type DatentraegerOptionen,
+} from './datentraeger.js';
+export {
   fuehreLaufAus,
   sammleDateien,
   GRUND_ANDERER_DATEITYP,
@@ -38,6 +45,8 @@ export {
   type Fortschritt,
   type LaufErgebnis,
   type LaufOptionen,
+  type Quelle,
+  type QuellenArt,
 } from './importlauf.js';
 export { GesehenListe, type GesehenEintrag } from './gesehen.js';
 export { ladeLaeufe, merkeLauf, MAX_LAEUFE } from './laeufe.js';

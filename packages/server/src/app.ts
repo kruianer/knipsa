@@ -66,6 +66,7 @@ function baueImportDienst(app: FastifyInstance, konfig: Konfiguration): ImportDi
   return new ImportDienst({
     wurzel: konfig.fotosPfad,
     quellen: konfig.importQuellen,
+    datentraegerPfad: konfig.datentraegerPfad,
     // Nur Quelle und Meldung ins Log, nie ein Pfad aus dem Foto-Baum.
     meldeFehler: (fehler) => {
       app.log.error({ fehler: fehler.message }, 'Import abgebrochen');

@@ -4,6 +4,7 @@ import { join } from 'node:path';
 
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+import type { Datentraeger } from './datentraeger.js';
 import {
   ImportDienst,
   ImportLaeuftBereits,
@@ -212,8 +213,8 @@ describe('Quellen', () => {
     });
 
     expect((await dienst.zustand()).quellen).toEqual([
-      { name: 'Test', verfuegbar: true },
-      { name: 'Weg', verfuegbar: false },
+      { name: 'Test', anzeige: 'Test', art: 'ordner', verfuegbar: true },
+      { name: 'Weg', anzeige: 'Weg', art: 'ordner', verfuegbar: false },
     ]);
   });
 
@@ -230,6 +231,107 @@ describe('Quellen', () => {
     await expect(dienst.starte('Weg')).rejects.toThrow(QuelleNichtVerfuegbar);
     expect(aufrufe()).toBe(0);
     expect((await dienst.zustand()).laufend).toBeUndefined();
+  });
+});
+
+describe('eingesteckte Datentraeger als Quelle', () => {
+  /** Dienst, dessen eingesteckte Datentraeger der Test vorgibt. */
+  function dienstMitKarte(eingesteckt: () => readonly Datentraeger[]): ImportDienst {
+    return new ImportDienst({
+      wurzel,
+      quellen: [{ name: 'Test', pfad: erste }],
+      datentraeger: () => Promise.resolve(eingesteckt()),
+      lauf: ({ quelle }) => Promise.resolve(ergebnis(quelle.name)),
+      leser: stubLeser,
+    });
+  }
+
+  function karte(): Datentraeger {
+    return {
+      name: 'NIKON D750',
+      pfad: zweite,
+      groesse: 63_864_569_856,
+      anzeige: 'NIKON D750 (64 GB)',
+    };
+  }
+
+  it('stellt sie mit Bezeichnung und Groesse neben die eingestellten Ordner', async () => {
+    const dienst = dienstMitKarte(() => [karte()]);
+
+    expect((await dienst.zustand()).quellen).toEqual([
+      { name: 'Test', anzeige: 'Test', art: 'ordner', verfuegbar: true },
+      {
+        name: 'NIKON D750',
+        anzeige: 'NIKON D750 (64 GB)',
+        art: 'datentraeger',
+        verfuegbar: true,
+      },
+    ]);
+  });
+
+  it('sieht bei jeder Abfrage neu nach, was eingesteckt ist', async () => {
+    // Eine erst nach dem Start von Knipsa eingesteckte Karte muss ohne
+    // Neustart der App erscheinen und nach dem Herausziehen verschwinden.
+    let eingesteckt: Datentraeger[] = [];
+    const dienst = dienstMitKarte(() => eingesteckt);
+
+    expect((await dienst.zustand()).quellen.map((quelle) => quelle.name)).toEqual(['Test']);
+
+    eingesteckt = [karte()];
+    expect((await dienst.zustand()).quellen.map((quelle) => quelle.name)).toEqual([
+      'Test',
+      'NIKON D750',
+    ]);
+
+    eingesteckt = [];
+    expect((await dienst.zustand()).quellen.map((quelle) => quelle.name)).toEqual(['Test']);
+  });
+
+  it('startet einen Lauf fuer den Datentraeger', async () => {
+    const dienst = dienstMitKarte(() => [karte()]);
+
+    await dienst.starte('NIKON D750');
+    await dienst.arbeit();
+
+    expect((await dienst.zustand()).laeufe[0]?.quelle).toBe('NIKON D750');
+  });
+
+  it('startet nichts fuer eine Karte, die nicht mehr steckt', async () => {
+    const dienst = dienstMitKarte(() => []);
+
+    await expect(dienst.starte('NIKON D750')).rejects.toThrow(UnbekannteQuelle);
+  });
+
+  it('meldet dem Lauf die Art der Quelle', async () => {
+    const arten: string[] = [];
+    const dienst = new ImportDienst({
+      wurzel,
+      quellen: [{ name: 'Test', pfad: erste }],
+      datentraeger: () => Promise.resolve([karte()]),
+      lauf: ({ quelle }) => {
+        arten.push(quelle.art);
+        return Promise.resolve(ergebnis(quelle.name));
+      },
+      leser: stubLeser,
+    });
+
+    await dienst.starte('Test');
+    await dienst.arbeit();
+    await dienst.starte('NIKON D750');
+    await dienst.arbeit();
+
+    expect(arten).toEqual(['ordner', 'datentraeger']);
+  });
+
+  it('ohne eingestellten Ordner fuer Datentraeger gibt es keine', async () => {
+    const dienst = new ImportDienst({
+      wurzel,
+      quellen: [],
+      lauf: ({ quelle }) => Promise.resolve(ergebnis(quelle.name)),
+      leser: stubLeser,
+    });
+
+    expect((await dienst.zustand()).quellen).toEqual([]);
   });
 });
 

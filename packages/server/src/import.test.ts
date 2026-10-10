@@ -76,8 +76,8 @@ describe('GET /api/import', () => {
     expect(antwort.statusCode).toBe(200);
     expect(antwort.json()).toEqual({
       quellen: [
-        { name: 'Test', verfuegbar: true },
-        { name: 'Fehlt', verfuegbar: false },
+        { name: 'Test', anzeige: 'Test', art: 'ordner', verfuegbar: true },
+        { name: 'Fehlt', anzeige: 'Fehlt', art: 'ordner', verfuegbar: false },
       ],
       laeufe: [],
     });

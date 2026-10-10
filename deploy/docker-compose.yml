@@ -22,6 +22,9 @@ services:
       SERVER_PORT: '3000'
       # Der Foto-Baum ist im Container immer unter /fotos eingebunden.
       FOTOS_PFAD: /fotos
+      # Eingesteckte Datentraeger erscheinen im Container unter
+      # /datentraeger (req-006).
+      DATENTRAEGER_PFAD: /datentraeger
       NODE_ENV: production
     ports:
       # Nur im Heim-WLAN erreichbar: gebunden an die LAN-IP des Beelink,
@@ -37,6 +40,17 @@ services:
       # Fremdquellen, Knipsa veraendert dort nie etwas. Welche Ordner
       # darunter als Quelle gelten, steht in IMPORT_QUELLEN (env-Datei).
       - '${QUELLEN_ROOT}:/quellen:ro'
+      # Einhaengepunkte der Datentraeger aus DATENTRAEGER_ROOT (auf dem
+      # Beelink /media/knipsa), nur lesend (req-006). Die Weitergabe
+      # rslave ist nicht optional: ohne sie sieht der Container nur, was
+      # beim Start schon eingehaengt war — eine spaeter eingesteckte
+      # Karte wuerde nie erscheinen.
+      - type: bind
+        source: ${DATENTRAEGER_ROOT}
+        target: /datentraeger
+        read_only: true
+        bind:
+          propagation: rslave
     depends_on:
       db:
         condition: service_healthy

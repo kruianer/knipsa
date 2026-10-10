@@ -25,6 +25,28 @@ describe('leseKonfiguration', () => {
       serverHost: '0.0.0.0',
       serverPort: 3000,
       importQuellen: [],
+      datentraegerPfad: '',
+    });
+  });
+
+  describe('DATENTRAEGER_PFAD', () => {
+    it('ist leer, wenn nichts eingestellt ist', () => {
+      expect(leseKonfiguration(vollstaendig).datentraegerPfad).toBe('');
+      expect(leseKonfiguration({ ...vollstaendig, DATENTRAEGER_PFAD: '  ' }).datentraegerPfad).toBe(
+        '',
+      );
+    });
+
+    it('liest den Ordner, unter dem Datentraeger eingehaengt erscheinen', () => {
+      expect(
+        leseKonfiguration({ ...vollstaendig, DATENTRAEGER_PFAD: '/datentraeger' }).datentraegerPfad,
+      ).toBe('/datentraeger');
+    });
+
+    it('lehnt einen relativen Pfad ab', () => {
+      expect(() =>
+        leseKonfiguration({ ...vollstaendig, DATENTRAEGER_PFAD: 'datentraeger' }),
+      ).toThrow('DATENTRAEGER_PFAD');
     });
   });
 

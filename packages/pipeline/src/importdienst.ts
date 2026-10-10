@@ -2,6 +2,11 @@
  * Der Import-Dienst: haelt die Quellen-Liste, startet Laeufe und weiss,
  * ob gerade einer laeuft.
  *
+ * Quellen sind die eingestellten Ordner aus `IMPORT_QUELLEN` (req-005)
+ * und die gerade eingesteckten Datentraeger (req-006). Die Datentraeger
+ * werden bei jeder Abfrage frisch nachgesehen: ein nach dem Start von
+ * Knipsa eingesteckter erscheint damit ohne Neustart der App.
+ *
  * Es laeuft immer nur ein Import gleichzeitig. Der Fortschritt steht im
  * Dienst, nicht im Browser — ein Neuladen der Seite zeigt ihn deshalb
  * unveraendert weiter.
@@ -11,13 +16,23 @@ import { stat } from 'node:fs/promises';
 
 import type { QuellenEinstellung } from '@knipsa/shared';
 
-import { fuehreLaufAus, type Fortschritt, type LaufErgebnis } from './importlauf.js';
+import { findeDatentraeger, type Datentraeger } from './datentraeger.js';
+import {
+  fuehreLaufAus,
+  type Fortschritt,
+  type LaufErgebnis,
+  type Quelle,
+  type QuellenArt,
+} from './importlauf.js';
 import { ladeLaeufe, merkeLauf } from './laeufe.js';
 import { exiftoolLeser, type MetadatenLeser } from './metadaten.js';
 
 /** Eine Quelle, wie die Seite sie zeigt. */
 export interface QuellenZustand {
   readonly name: string;
+  /** Beschriftung auf der Seite; bei Datentraegern mit Groesse. */
+  readonly anzeige: string;
+  readonly art: QuellenArt;
   readonly verfuegbar: boolean;
 }
 
@@ -63,15 +78,27 @@ export class QuelleNichtVerfuegbar extends Error {
 /** Ein Lauf, so wie der Dienst ihn ausfuehrt. In Tests ersetzbar. */
 export type LaufFunktion = (auftrag: {
   readonly wurzel: string;
-  readonly quelle: QuellenEinstellung;
+  readonly quelle: Quelle;
   readonly leser: MetadatenLeser;
   readonly melde: (fortschritt: Fortschritt) => void;
 }) => Promise<LaufErgebnis>;
+
+/** Eine Quelle samt ihrer Beschriftung auf der Seite. */
+interface AngeboteneQuelle extends Quelle {
+  readonly anzeige: string;
+}
 
 export interface ImportDienstOptionen {
   /** Wurzel des Foto-Baums. */
   readonly wurzel: string;
   readonly quellen: readonly QuellenEinstellung[];
+  /**
+   * Ordner, unter dem eingesteckte Datentraeger eingehaengt erscheinen
+   * (`DATENTRAEGER_PFAD`). Leer oder nicht gesetzt: keine Datentraeger.
+   */
+  readonly datentraegerPfad?: string;
+  /** Ersetzt das Nachsehen der Datentraeger; nur fuer Tests. */
+  readonly datentraeger?: () => Promise<readonly Datentraeger[]>;
   /** Ersetzt den echten Lauf; nur fuer Tests. */
   readonly lauf?: LaufFunktion;
   /** Ersetzt den `exiftool`-Leser; nur fuer Tests. */
@@ -95,6 +122,7 @@ async function istVerzeichnisLesbar(pfad: string): Promise<boolean> {
 export class ImportDienst {
   readonly #wurzel: string;
   readonly #quellen: readonly QuellenEinstellung[];
+  readonly #datentraeger: () => Promise<readonly Datentraeger[]>;
   readonly #lauf: LaufFunktion;
   readonly #leser: () => MetadatenLeser;
   readonly #meldeFehler: (fehler: Error) => void;
@@ -102,19 +130,56 @@ export class ImportDienst {
   #laufend: LaufenderImport | undefined;
   #arbeit: Promise<void> | undefined;
 
-  constructor({ wurzel, quellen, lauf, leser, meldeFehler }: ImportDienstOptionen) {
+  constructor({
+    wurzel,
+    quellen,
+    datentraegerPfad = '',
+    datentraeger,
+    lauf,
+    leser,
+    meldeFehler,
+  }: ImportDienstOptionen) {
     this.#wurzel = wurzel;
     this.#quellen = quellen;
+    this.#datentraeger =
+      datentraeger ?? ((): Promise<Datentraeger[]> => findeDatentraeger(datentraegerPfad));
     this.#lauf = lauf ?? fuehreLaufAus;
     this.#leser = leser ?? exiftoolLeser;
     this.#meldeFehler = meldeFehler ?? ((): void => {});
   }
 
+  /**
+   * Alle Quellen, die die Seite anbietet: erst die eingestellten Ordner,
+   * dann die gerade eingesteckten Datentraeger. Ein Datentraeger, dessen
+   * Bezeichnung schon als Ordner-Quelle eingestellt ist, bleibt aussen
+   * vor — sonst waere der Name auf der Seite nicht mehr eindeutig.
+   */
+  async #alleQuellen(): Promise<AngeboteneQuelle[]> {
+    const ordner: AngeboteneQuelle[] = this.#quellen.map((quelle) => ({
+      ...quelle,
+      art: 'ordner',
+      anzeige: quelle.name,
+    }));
+
+    const traeger: AngeboteneQuelle[] = (await this.#datentraeger())
+      .filter((gefunden) => !ordner.some((quelle) => quelle.name === gefunden.name))
+      .map((gefunden) => ({
+        name: gefunden.name,
+        pfad: gefunden.pfad,
+        art: 'datentraeger',
+        anzeige: gefunden.anzeige,
+      }));
+
+    return [...ordner, ...traeger];
+  }
+
   /** Zustand der Seite: Quellen, laufender Import, letzte Laeufe. */
   async zustand(): Promise<ImportZustand> {
     const quellen = await Promise.all(
-      this.#quellen.map(async (quelle) => ({
+      (await this.#alleQuellen()).map(async (quelle) => ({
         name: quelle.name,
+        anzeige: quelle.anzeige,
+        art: quelle.art,
         verfuegbar: await istVerzeichnisLesbar(quelle.pfad),
       })),
     );
@@ -131,7 +196,7 @@ export class ImportDienst {
       throw new ImportLaeuftBereits();
     }
 
-    const quelle = this.#quellen.find((eintrag) => eintrag.name === name);
+    const quelle = (await this.#alleQuellen()).find((eintrag) => eintrag.name === name);
     if (quelle === undefined) {
       throw new UnbekannteQuelle(name);
     }
@@ -149,7 +214,7 @@ export class ImportDienst {
     this.#arbeit = this.#arbeite(quelle);
   }
 
-  async #arbeite(quelle: QuellenEinstellung): Promise<void> {
+  async #arbeite(quelle: Quelle): Promise<void> {
     const leser = this.#leser();
     try {
       const ergebnis = await this.#lauf({

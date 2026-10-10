@@ -53,6 +53,29 @@ describe('Quellen', () => {
     expect(bereich.querySelector('.quellen-leer')?.textContent).toBe('Keine Quelle eingestellt');
   });
 
+  it('zeigt einen Datentraeger mit Bezeichnung und Groesse', () => {
+    zeichneImport(
+      bereich,
+      {
+        ...leer,
+        quellen: [
+          {
+            name: 'NIKON D750',
+            anzeige: 'NIKON D750 (64 GB)',
+            art: 'datentraeger',
+            verfuegbar: true,
+          },
+        ],
+      },
+      () => {},
+    );
+
+    const zeile = bereich.querySelector<HTMLElement>('.quelle');
+    expect(zeile?.querySelector('.quelle-name')?.textContent).toBe('NIKON D750 (64 GB)');
+    expect(zeile?.dataset.quelle).toBe('NIKON D750');
+    expect(zeile?.dataset.art).toBe('datentraeger');
+  });
+
   it('zeigt keine Bilder', () => {
     zeichneImport(bereich, { ...leer, quellen: [{ name: 'Test', verfuegbar: true }] }, () => {});
 

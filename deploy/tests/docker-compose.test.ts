@@ -3,11 +3,20 @@ import { describe, expect, it } from 'vitest';
 
 import { leseDatei } from './pfade.js';
 
+/** Eine Einbindung in der langen Schreibweise von Compose. */
+interface Einbindung {
+  readonly type?: string;
+  readonly source?: string;
+  readonly target?: string;
+  readonly read_only?: boolean;
+  readonly bind?: { propagation?: string };
+}
+
 interface Dienst {
   readonly image?: string;
   readonly build?: { context?: string; dockerfile?: string };
   readonly ports?: string[];
-  readonly volumes?: string[];
+  readonly volumes?: (string | Einbindung)[];
   readonly env_file?: string[];
   readonly environment?: Record<string, string>;
   readonly healthcheck?: { test?: string[] };
@@ -104,13 +113,45 @@ describe('Import-Quellen (req-005)', () => {
     expect(server?.volumes).toContain('${QUELLEN_ROOT}:/quellen:ro');
   });
 
-  it('bindet neben Foto-Baum und Quellen nichts weiteres ein', () => {
-    expect(server?.volumes).toEqual(['${FOTOS_ROOT}:/fotos', '${QUELLEN_ROOT}:/quellen:ro']);
-  });
-
   it('nagelt keinen Quellpfad fest und setzt die Quellen-Liste nicht selbst', () => {
     expect(quelle).not.toContain('knipsa-quellen');
     expect(server?.environment?.IMPORT_QUELLEN).toBeUndefined();
+  });
+});
+
+describe('Datentraeger (req-006)', () => {
+  const einbindung = server?.volumes?.find(
+    (eintrag): eintrag is Einbindung =>
+      typeof eintrag !== 'string' && eintrag.target === '/datentraeger',
+  );
+
+  it('bindet DATENTRAEGER_ROOT unter /datentraeger ein, nur lesend', () => {
+    expect(einbindung?.type).toBe('bind');
+    expect(einbindung?.source).toBe('${DATENTRAEGER_ROOT}');
+    expect(einbindung?.read_only).toBe(true);
+    expect(server?.environment?.DATENTRAEGER_PFAD).toBe('/datentraeger');
+  });
+
+  it('gibt spaeter eingehaengte Datentraeger in den Container weiter', () => {
+    // Ohne rslave sieht der Container nur, was beim Start schon
+    // eingehaengt war — eine danach eingesteckte Karte nie.
+    expect(einbindung?.bind?.propagation).toBe('rslave');
+  });
+
+  it('nagelt den Einhaengepunkt des Hosts nicht fest', () => {
+    // Nur im Kommentar darf stehen, wo er auf dem Beelink liegt.
+    const ohneKommentare = quelle
+      .split('\n')
+      .filter((zeile) => !zeile.trim().startsWith('#'))
+      .join('\n');
+
+    expect(ohneKommentare).not.toContain('/media/knipsa');
+  });
+
+  it('bindet neben Foto-Baum, Quellen und Datentraegern nichts weiteres ein', () => {
+    expect(server?.volumes).toHaveLength(3);
+    expect(server?.volumes).toContain('${FOTOS_ROOT}:/fotos');
+    expect(server?.volumes).toContain('${QUELLEN_ROOT}:/quellen:ro');
   });
 });
 

@@ -42,11 +42,11 @@ Problemfälle, Übersprungenes und Ergebnis gelten unverändert wie dort.
 
 # Acceptance Criteria
 
-- [ ] Given die Seite "Import" ist offen, when ich eine SD-Karte mit der
+- [x] Given die Seite "Import" ist offen, when ich eine SD-Karte mit der
   Bezeichnung `NIKON D750` einstecke, then erscheint sie binnen 10
   Sekunden als `NIKON D750 (64 GB)` in der Quellen-Liste, ohne dass ich
   neu lade.
-- [ ] Given die Karte steht in der Liste, when ich sie herausziehe, then
+- [x] Given die Karte steht in der Liste, when ich sie herausziehe, then
   verschwindet sie binnen 10 Sekunden aus der Liste.
 - [ ] Given die Karte enthält `DCIM/100NIKON` und `DCIM/101NIKON`, when
   ich über "Ordner wählen …" `DCIM/101NIKON` importiere, then enthält das
