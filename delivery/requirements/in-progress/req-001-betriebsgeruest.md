@@ -97,10 +97,10 @@ nach dem Muster der anderen Apps des Betreibers)
 - [ ] Given ein Merge auf `main`, when der Workflow durchläuft, then zeigt
   `http://192.168.2.200:8099` die Minimalseite mit "prod", und dev läuft
   unverändert weiter.
-- [ ] Given beide Umgebungen laufen, when ich `/health/live` und
+- [x] Given beide Umgebungen laufen, when ich `/health/live` und
   `/health/ready` aufrufe, then antworten beide mit `200` und nur
   Status-Angaben.
-- [ ] Given der DB-Container ist gestoppt, when ich `/health/ready`
+- [x] Given der DB-Container ist gestoppt, when ich `/health/ready`
   aufrufe, then antwortet es mit `503` und meldet die DB als `fehler`,
   während `/health/live` weiter `200` liefert.
 - [ ] Given ein Commit mit fehlschlagendem Test, when er auf `dev`
