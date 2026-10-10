@@ -40,16 +40,10 @@ describe('deploy/Dockerfile', () => {
 });
 
 describe('deploy/health-check.sh', () => {
+  // Was das Skript tut, prueft deploy/tests/health-check.test.ts.
   it('ist ausfuehrbar', () => {
     expect(() =>
       accessSync(join(repoWurzel, 'deploy/health-check.sh'), constants.X_OK),
     ).not.toThrow();
-  });
-
-  it('bricht bei Fehlern ab und wiederholt mit Pause', () => {
-    const skript = leseDatei('deploy/health-check.sh');
-    expect(skript).toContain('set -euo pipefail');
-    expect(skript).toMatch(/for \(\(versuch/);
-    expect(skript).toContain('exit 1');
   });
 });
