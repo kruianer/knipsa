@@ -17,6 +17,8 @@ function zeileZu(eintrag: ErgebnisEintrag): string {
       return `neu           ${eintrag.quellPfad} -> ${eintrag.ablage ?? ''}`;
     case 'bekannt':
       return `schon bekannt ${eintrag.quellPfad} -> ${eintrag.schluessel ?? ''}`;
+    case 'uebersprungen':
+      return `uebersprungen ${eintrag.quellPfad} -> ${eintrag.grund ?? ''}`;
     case 'problem':
       return `problem       ${eintrag.quellPfad} -> ${eintrag.grund ?? ''}`;
   }
@@ -31,6 +33,7 @@ export function protokollText(ergebnis: LaufErgebnis): string {
     `Dateien:       ${ergebnis.gesamt}`,
     `Neu:           ${ergebnis.neu}`,
     `Schon bekannt: ${ergebnis.bekannt}`,
+    `Uebersprungen: ${ergebnis.uebersprungen}`,
     `Problem:       ${ergebnis.problem}`,
     '',
   ];

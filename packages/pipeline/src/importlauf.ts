@@ -16,7 +16,6 @@ import {
   dateiArt,
   endung,
   grundname,
-  istFoto,
   kopiereGeprueft,
   pruefsumme,
   sekundenTeil,
@@ -35,12 +34,19 @@ import { legeProblemAb } from './problem.js';
 import { schreibeProtokoll } from './protokoll.js';
 
 /** Wie eine Datei im Ergebnis eines Laufs gezaehlt wird. */
-export type ErgebnisArt = 'neu' | 'bekannt' | 'problem';
+export type ErgebnisArt = 'neu' | 'bekannt' | 'uebersprungen' | 'problem';
 
 /** Begruendungen fuer einen Problemfall — Wortlaut wie auf der Seite. */
 export const GRUND_KEINE_AUFNAHMEZEIT = 'keine Aufnahmezeit';
 export const GRUND_SIDECAR_OHNE_FOTO = 'Sidecar ohne Foto';
 export const GRUND_BESCHAEDIGT = 'beschädigt';
+
+/** Begruendungen fuer eine uebersprungene Datei — nichts wird kopiert. */
+export const GRUND_VIDEO = 'Video';
+export const GRUND_ANDERER_DATEITYP = 'anderer Dateityp';
+export const GRUND_JPEG_NEBEN_NEF = 'JPEG neben gleichnamiger NEF';
+export const GRUND_SIDECAR_BEKANNT = 'Sidecar zu bekanntem Foto nicht übernommen';
+export const GRUND_SIDECAR_PROBLEM = 'Sidecar zu Problemfall nicht übernommen';
 
 /** Eine Datei im Ergebnis eines Laufs. */
 export interface ErgebnisEintrag {
@@ -51,7 +57,7 @@ export interface ErgebnisEintrag {
   readonly schluessel?: string;
   /** Ablage im Baum ab `_wartend`, nur bei `neu`. */
   readonly ablage?: string;
-  /** Begruendung, nur bei `problem`. */
+  /** Begruendung, bei `uebersprungen` und `problem`. */
   readonly grund?: string;
 }
 
@@ -66,6 +72,7 @@ export interface LaufErgebnis {
   readonly gesamt: number;
   readonly neu: number;
   readonly bekannt: number;
+  readonly uebersprungen: number;
   readonly problem: number;
   readonly dateien: readonly ErgebnisEintrag[];
   /** Pfad des Protokolls im Foto-Baum, relativ zur Wurzel. */
@@ -185,16 +192,17 @@ function sidecarsZu(foto: Quelldatei, dateien: readonly Quelldatei[]): Quelldate
 
 /**
  * `true`, wenn im selben Ordner eine NEF mit demselben Grundnamen liegt.
- * Nur dann gehoert ein Sidecar zu einem Foto.
+ * Nur dann gehoert ein Sidecar zu einem Foto; ein JPEG daneben ist dann
+ * nur eine Ansicht der NEF und wird uebersprungen.
  */
-function hatEigeneNef(sidecar: Quelldatei, dateien: readonly Quelldatei[]): boolean {
-  const basis = grundname(sidecar.dateiname);
+function hatNefDaneben(datei: Quelldatei, dateien: readonly Quelldatei[]): boolean {
+  const basis = grundname(datei.dateiname);
 
   return dateien.some(
-    (datei) =>
-      datei.art === 'raw' &&
-      datei.ordner === sidecar.ordner &&
-      grundname(datei.dateiname) === basis,
+    (andere) =>
+      andere.art === 'raw' &&
+      andere.ordner === datei.ordner &&
+      grundname(andere.dateiname) === basis,
   );
 }
 
@@ -246,21 +254,36 @@ export async function fuehreLaufAus({
     abgeschlossen();
   };
 
+  /** Vermerkt eine Datei als uebersprungen; kopiert wird dabei nichts. */
+  const uebersprungen = (datei: Quelldatei, grund: string): void => {
+    ergebnisse.set(datei.quellPfad, { art: 'uebersprungen', quellPfad: datei.quellPfad, grund });
+    abgeschlossen();
+  };
+
   // Erster Durchgang: einordnen, Pruefsummen bilden, Aufnahmezeit lesen.
   const einheiten: Einheit[] = [];
   for (const datei of dateien) {
+    if (datei.art === 'video') {
+      uebersprungen(datei, GRUND_VIDEO);
+      continue;
+    }
+    if (datei.art === 'anderes') {
+      uebersprungen(datei, GRUND_ANDERER_DATEITYP);
+      continue;
+    }
+
     if (datei.art === 'sidecar') {
       // Ein Sidecar ohne eigene NEF gehoert zu keinem Foto. Mit NEF geht
       // es als Teil ihrer Einheit mit.
-      if (!hatEigeneNef(datei, dateien)) {
+      if (!hatNefDaneben(datei, dateien)) {
         await alsProblem(datei, await pruefsumme(datei.pfad), GRUND_SIDECAR_OHNE_FOTO);
       }
       continue;
     }
 
-    if (!istFoto(datei.art)) {
-      // Videos und andere Dateitypen kommen in einer spaeteren Etappe
-      // als "uebersprungen" dazu.
+    // Ein JPEG neben einer gleichnamigen NEF ist nur eine Ansicht davon.
+    if (datei.art === 'jpeg' && hatNefDaneben(datei, dateien)) {
+      uebersprungen(datei, GRUND_JPEG_NEBEN_NEF);
       continue;
     }
 
@@ -276,8 +299,9 @@ export async function fuehreLaufAus({
       for (const teil of teile) {
         const eintrag = gesehen.kennt(teil.summe);
         if (eintrag === undefined) {
-          // Ein veraenderter Sidecar zu einem bekannten Foto kommt in
-          // einer spaeteren Etappe als "uebersprungen" dazu.
+          // Ein veraenderter Sidecar zu einem schon bekannten Foto wird
+          // nicht uebernommen (Varianten und neue Sidecars: req-007).
+          uebersprungen(teil.datei, GRUND_SIDECAR_BEKANNT);
           continue;
         }
 
@@ -294,12 +318,18 @@ export async function fuehreLaufAus({
 
     const eigeneSumme = teile[0]?.summe ?? '';
     const zeit = await leser.leseAufnahmezeit(datei.pfad);
-    if (zeit.art === 'beschaedigt') {
-      await alsProblem(datei, eigeneSumme, GRUND_BESCHAEDIGT);
-      continue;
-    }
-    if (zeit.art === 'keineZeit') {
-      await alsProblem(datei, eigeneSumme, GRUND_KEINE_AUFNAHMEZEIT);
+    if (zeit.art !== 'gelesen') {
+      await alsProblem(
+        datei,
+        eigeneSumme,
+        zeit.art === 'beschaedigt' ? GRUND_BESCHAEDIGT : GRUND_KEINE_AUFNAHMEZEIT,
+      );
+
+      // Ohne Schluessel fuer das Foto hat sein Sidecar nichts, woran es
+      // haengen koennte.
+      for (const teil of teile.slice(1)) {
+        uebersprungen(teil.datei, GRUND_SIDECAR_PROBLEM);
+      }
       continue;
     }
 
@@ -344,6 +374,7 @@ export async function fuehreLaufAus({
     gesamt,
     neu: geordnet.filter((eintrag) => eintrag.art === 'neu').length,
     bekannt: geordnet.filter((eintrag) => eintrag.art === 'bekannt').length,
+    uebersprungen: geordnet.filter((eintrag) => eintrag.art === 'uebersprungen').length,
     problem: geordnet.filter((eintrag) => eintrag.art === 'problem').length,
     dateien: geordnet,
     protokoll: posix.join('protokoll', 'import', protokollName(quelle.name, begonnen)),

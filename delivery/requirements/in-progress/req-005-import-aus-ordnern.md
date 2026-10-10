@@ -78,9 +78,9 @@ Quelle bleibt dabei unangetastet.
   Aufnahmezeit".
 - [x] Given `DSC_0500.xmp` ohne zugehörige NEF, when ich importiere, then
   erscheint sie als Problem mit dem Grund "Sidecar ohne Foto".
-- [ ] Given `IMG_0001.MOV` und `DSC_0413.JPG` neben `DSC_0413.NEF`, when
+- [x] Given `IMG_0001.MOV` und `DSC_0413.JPG` neben `DSC_0413.NEF`, when
   ich importiere, then erscheinen beide als "übersprungen" mit ihrem Grund.
-- [ ] Given `DSC_0412.NEF` ist schon importiert und in der Quelle liegt
+- [x] Given `DSC_0412.NEF` ist schon importiert und in der Quelle liegt
   inzwischen eine geänderte `DSC_0412.xmp`, when ich importiere, then
   erscheint der Hinweis "Sidecar zu bekanntem Foto nicht übernommen".
 - [ ] Given ein Import läuft, when ich die Seite neu lade, then sehe ich

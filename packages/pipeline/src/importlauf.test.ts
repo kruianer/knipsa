@@ -183,6 +183,98 @@ describe('Fotos derselben Sekunde', () => {
   });
 });
 
+describe('uebersprungene Dateien', () => {
+  it('ueberspringt Video und JPEG neben gleichnamiger NEF mit ihrem Grund', async () => {
+    const ordner = join(quelle.pfad, 'Toskana 2019');
+    await schreibeDatei(join(ordner, 'DSC_0413.NEF'), nefBytes({ datum: '2019:06:14 10:15:02' }));
+    await schreibeDatei(join(ordner, 'DSC_0413.JPG'), jpegBytes({ datum: '2019:06:14 10:15:02' }));
+    await schreibeDatei(join(ordner, 'IMG_0001.MOV'), 'kein Foto');
+
+    const ergebnis = await lauf();
+
+    expect(zu(ergebnis, 'Toskana 2019/IMG_0001.MOV')).toEqual({
+      art: 'uebersprungen',
+      quellPfad: 'Toskana 2019/IMG_0001.MOV',
+      grund: 'Video',
+    });
+    expect(zu(ergebnis, 'Toskana 2019/DSC_0413.JPG')).toEqual({
+      art: 'uebersprungen',
+      quellPfad: 'Toskana 2019/DSC_0413.JPG',
+      grund: 'JPEG neben gleichnamiger NEF',
+    });
+    expect(ergebnis.uebersprungen).toBe(2);
+    expect(ergebnis.neu).toBe(1);
+  });
+
+  it('kopiert eine uebersprungene Datei nirgendwohin', async () => {
+    await schreibeDatei(join(quelle.pfad, 'film.MOV'), 'kein Foto');
+    await schreibeDatei(join(quelle.pfad, 'notizen.txt'), 'Text');
+
+    const ergebnis = await lauf();
+
+    expect(zu(ergebnis, 'notizen.txt')?.grund).toBe('anderer Dateityp');
+    expect(await existiert(join(wurzel, 'original'))).toBe(false);
+    expect(await existiert(join(wurzel, 'eingang', 'problem'))).toBe(false);
+  });
+
+  it('uebernimmt ein JPEG ohne NEF daneben wie jedes andere Foto', async () => {
+    await schreibeDatei(
+      join(quelle.pfad, 'handy', 'IMG_0007.JPG'),
+      jpegBytes({ datum: '2019:06:14 10:15:02' }),
+    );
+
+    const ergebnis = await lauf();
+
+    expect(zu(ergebnis, 'handy/IMG_0007.JPG')?.ablage).toBe(
+      '_wartend/2019-06/20190614-101502a.JPG',
+    );
+  });
+
+  it('uebernimmt einen geaenderten Sidecar zu einem bekannten Foto nicht', async () => {
+    const ordner = join(quelle.pfad, 'Toskana 2019');
+    await schreibeDatei(join(ordner, 'DSC_0412.NEF'), nefBytes({ datum: '2019:06:14 10:15:00' }));
+    await schreibeDatei(join(ordner, 'DSC_0412.xmp'), xmpText(3));
+    await lauf();
+
+    // In der Quelle liegt inzwischen eine andere Fassung des Sidecars.
+    await schreibeDatei(join(ordner, 'DSC_0412.xmp'), xmpText(5));
+
+    const zweiter = await lauf();
+
+    expect(zu(zweiter, 'Toskana 2019/DSC_0412.xmp')).toEqual({
+      art: 'uebersprungen',
+      quellPfad: 'Toskana 2019/DSC_0412.xmp',
+      grund: 'Sidecar zu bekanntem Foto nicht übernommen',
+    });
+    expect(zu(zweiter, 'Toskana 2019/DSC_0412.NEF')?.art).toBe('bekannt');
+    // Der Sidecar im Baum bleibt die zuerst importierte Fassung.
+    expect(
+      await readFile(
+        join(wurzel, 'original', '_wartend', '2019-06', '20190614-101500a.xmp'),
+        'utf8',
+      ),
+    ).toBe(xmpText(3));
+  });
+
+  it('ordnet jede Datei der Quelle genau einmal ein', async () => {
+    const ordner = join(quelle.pfad, 'bunt');
+    await schreibeDatei(join(ordner, 'DSC_0413.NEF'), nefBytes({ datum: '2019:06:14 10:15:02' }));
+    await schreibeDatei(join(ordner, 'DSC_0413.xmp'), xmpText(3));
+    await schreibeDatei(join(ordner, 'DSC_0413.JPG'), jpegBytes({ datum: '2019:06:14 10:15:02' }));
+    await schreibeDatei(join(ordner, 'DSC_0500.xmp'), xmpText(1));
+    await schreibeDatei(join(ordner, 'IMG_0001.MOV'), 'kein Foto');
+    await schreibeDatei(join(ordner, 'notizen.txt'), 'Text');
+    await schreibeDatei(join(ordner, 'ohne-zeit.jpg'), jpegBytes());
+    await schreibeDatei(join(ordner, 'kaputt.jpg'), kaputteJpegBytes());
+
+    const ergebnis = await lauf();
+
+    expect(ergebnis.gesamt).toBe(8);
+    expect(ergebnis.dateien).toHaveLength(8);
+    expect(ergebnis.neu + ergebnis.bekannt + ergebnis.uebersprungen + ergebnis.problem).toBe(8);
+  });
+});
+
 describe('Problemfaelle', () => {
   it('meldet ein JPEG ohne Aufnahmezeit mit dem Grund "keine Aufnahmezeit"', async () => {
     await schreibeDatei(join(quelle.pfad, 'handy', 'IMG_4711.JPG'), jpegBytes());

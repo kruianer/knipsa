@@ -38,6 +38,7 @@ export interface LaufErgebnis {
   readonly gesamt: number;
   readonly neu: number;
   readonly bekannt: number;
+  readonly uebersprungen: number;
   readonly problem: number;
   readonly dateien: readonly ErgebnisEintrag[];
   readonly protokoll: string;
@@ -81,6 +82,8 @@ function zeileZu(eintrag: ErgebnisEintrag): string {
   switch (eintrag.art) {
     case 'neu':
       return `${eintrag.quellPfad} → ${eintrag.ablage ?? ''}`;
+    case 'uebersprungen':
+      return `${eintrag.quellPfad} → übersprungen: ${eintrag.grund ?? ''}`;
     case 'problem':
       return `${eintrag.quellPfad} → Problem: ${eintrag.grund ?? ''}`;
     default:
@@ -122,7 +125,8 @@ function zeichneLauf(dokument: Document, lauf: LaufErgebnis): HTMLElement {
   const kopf = element(dokument, 'summary');
   kopf.textContent =
     `${lauf.quelle} — ${zeitText(lauf.begonnen)} — ` +
-    `${lauf.neu} neu, ${lauf.bekannt} schon bekannt, ${lauf.problem} Problem`;
+    `${lauf.neu} neu, ${lauf.bekannt} schon bekannt, ` +
+    `${lauf.uebersprungen} übersprungen, ${lauf.problem} Problem`;
 
   const liste = element(dokument, 'ul', 'lauf-dateien');
   for (const eintrag of lauf.dateien) {
