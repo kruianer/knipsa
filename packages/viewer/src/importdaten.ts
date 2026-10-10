@@ -70,6 +70,33 @@ export async function starteImport(
   return istZustand(daten) ? daten : await holeImportZustand(abrufen);
 }
 
+/**
+ * Bricht den laufenden Import ab. Der Lauf endet nach der gerade
+ * bearbeiteten Datei; was bis dahin importiert ist, bleibt es.
+ */
+export async function brecheImportAb(abrufen: Abrufen): Promise<ImportZustand> {
+  let antwort: Response;
+  try {
+    antwort = await abrufen('/api/import/abbrechen', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+    });
+  } catch {
+    return { ...IMPORT_UNBEKANNT, meldung: 'Server nicht erreichbar' };
+  }
+
+  const daten: unknown = await antwort.json().catch(() => undefined);
+
+  if (!antwort.ok) {
+    return {
+      ...(await holeImportZustand(abrufen)),
+      meldung: fehlerText(daten, 'Import nicht abgebrochen'),
+    };
+  }
+
+  return istZustand(daten) ? daten : await holeImportZustand(abrufen);
+}
+
 function istWahl(wert: unknown): wert is OrdnerWahl {
   if (typeof wert !== 'object' || wert === null) {
     return false;

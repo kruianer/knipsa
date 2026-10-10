@@ -14,6 +14,7 @@ export function pipelineKonfiguration(env?: UmgebungsVariablen): Konfiguration {
 export {
   ImportDienst,
   ImportLaeuftBereits,
+  KeinImportLaeuft,
   QuelleNichtVerfuegbar,
   UnbekannteQuelle,
   type ImportDienstOptionen,
@@ -39,6 +40,7 @@ export {
   type DatentraegerOptionen,
 } from './datentraeger.js';
 export {
+  abschlussText,
   fuehreLaufAus,
   sammleDateien,
   GRUND_ANDERER_DATEITYP,
@@ -49,6 +51,8 @@ export {
   GRUND_SIDECAR_OHNE_FOTO,
   GRUND_SIDECAR_PROBLEM,
   GRUND_VIDEO,
+  type AbbruchGrund,
+  type AbschlussAngaben,
   type ErgebnisArt,
   type ErgebnisEintrag,
   type Fortschritt,

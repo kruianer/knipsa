@@ -6,6 +6,7 @@ import { existiert, pruefsumme } from '@knipsa/shared';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 
 import {
+  abschlussText,
   fuehreLaufAus,
   sammleDateien,
   type ErgebnisEintrag,
@@ -472,6 +473,154 @@ describe('einen Ordner der Quelle importieren', () => {
     await expect(fuehreLaufAus({ wurzel, quelle, ordner: 'DCIM/999NIKON', leser })).rejects.toThrow(
       'Ordner nicht bekannt',
     );
+  });
+});
+
+describe('abschlussText', () => {
+  const ganz = { art: 'datentraeger' as const, ordner: '', abgebrochen: undefined, problem: 0 };
+
+  it('raet nach einem ganzen, fehlerfreien Lauf zum Formatieren', () => {
+    expect(abschlussText(ganz)).toBe('Vollständig im Archiv — kann formatiert werden');
+  });
+
+  it('raet bei einem Problemfall nicht zum Formatieren', () => {
+    expect(abschlussText({ ...ganz, problem: 1 })).toBe('nicht vollständig — 1 Problemfall');
+    expect(abschlussText({ ...ganz, problem: 3 })).toBe('nicht vollständig — 3 Problemfälle');
+  });
+
+  it('nennt nach einem Ordner-Lauf nur den Ordner', () => {
+    expect(abschlussText({ ...ganz, ordner: 'DCIM/101NIKON' })).toBe(
+      'Ordner 101NIKON vollständig im Archiv',
+    );
+  });
+
+  it('sagt nach einer Ordner-Quelle nichts ueber das Formatieren', () => {
+    expect(abschlussText({ ...ganz, art: 'ordner' })).toBe('Vollständig im Archiv');
+  });
+
+  it('nennt den Abbruch und seinen Grund', () => {
+    expect(abschlussText({ ...ganz, abgebrochen: 'nutzer' })).toBe('abgebrochen');
+    expect(abschlussText({ ...ganz, abgebrochen: 'entfernt' })).toBe(
+      'abgebrochen — Datenträger entfernt',
+    );
+    // Ein abgebrochener Lauf ist nie vollstaendig, auch ohne Problemfall.
+    expect(abschlussText({ ...ganz, abgebrochen: 'nutzer', problem: 2 })).toBe('abgebrochen');
+  });
+});
+
+describe('Abbrechen mitten im Lauf', () => {
+  /**
+   * 200 Fotos, deren Aufnahmezeit ohne `exiftool` feststeht: hier zaehlt
+   * der Abbruch, nicht das Lesen der Metadaten. Jede Datei bekommt eine
+   * eigene Sekunde, damit die Schluessel eindeutig sind.
+   */
+  async function vieleFotos(anzahl: number): Promise<MetadatenLeser> {
+    const zeiten = new Map<string, number>();
+    for (let nummer = 0; nummer < anzahl; nummer += 1) {
+      const name = `DSC_${String(nummer).padStart(4, '0')}.NEF`;
+      await schreibeDatei(join(quelle.pfad, 'DCIM', '100NIKON', name), `Foto ${nummer}`);
+      zeiten.set(name, nummer);
+    }
+
+    return {
+      leseAufnahmezeit: (pfad) => {
+        const nummer = zeiten.get(pfad.split('/').at(-1) ?? '') ?? 0;
+        return Promise.resolve({
+          art: 'gelesen' as const,
+          zeit: {
+            jahr: 2019,
+            monat: 6,
+            tag: 14,
+            stunde: 10,
+            minute: Math.floor(nummer / 60),
+            sekunde: nummer % 60,
+          },
+          bruchteil: undefined,
+        });
+      },
+      schliesse: () => Promise.resolve(),
+    };
+  }
+
+  it('endet als abgebrochen und laesst die Fotos bis dahin vollstaendig im Wartebereich', async () => {
+    const eigenerLeser = await vieleFotos(200);
+    let erledigt = 0;
+
+    const ergebnis = await fuehreLaufAus({
+      wurzel,
+      quelle,
+      leser: eigenerLeser,
+      // Nach etwa 50 Dateien drueckt der Nutzer "Abbrechen".
+      abbruch: () => (erledigt > 50 ? 'nutzer' : undefined),
+      melde: (fortschritt) => {
+        erledigt = fortschritt.erledigt;
+      },
+    });
+
+    expect(ergebnis.abgebrochen).toBe('nutzer');
+    expect(ergebnis.abschluss).toBe('abgebrochen');
+    expect(ergebnis.gesamt).toBe(200);
+    expect(ergebnis.neu).toBeGreaterThan(0);
+    expect(ergebnis.neu).toBeLessThan(200);
+    expect(ergebnis.dateien).toHaveLength(ergebnis.neu);
+
+    // Jedes gemeldete Foto liegt bytegleich im Wartebereich, und es liegt
+    // keine halbe Kopie in .import-teil.
+    for (const eintrag of ergebnis.dateien) {
+      const ziel = join(wurzel, 'original', eintrag.ablage ?? '');
+      expect(await pruefsumme(ziel)).toBe(await pruefsumme(join(quelle.pfad, eintrag.quellPfad)));
+    }
+    expect(await readdir(join(wurzel, '.import-teil'))).toEqual([]);
+  });
+
+  it('nimmt genau die gemeldeten Fotos in die Gesehen-Liste auf', async () => {
+    const eigenerLeser = await vieleFotos(20);
+    let erledigt = 0;
+
+    const ergebnis = await fuehreLaufAus({
+      wurzel,
+      quelle,
+      leser: eigenerLeser,
+      abbruch: () => (erledigt > 5 ? 'nutzer' : undefined),
+      melde: (fortschritt) => {
+        erledigt = fortschritt.erledigt;
+      },
+    });
+
+    const zeilen = (await readFile(join(wurzel, 'gesehen', 'gesehen.jsonl'), 'utf8'))
+      .split('\n')
+      .filter((zeile) => zeile !== '');
+    expect(zeilen).toHaveLength(ergebnis.neu);
+  });
+
+  it('bricht auch die Quelle Test ab, nicht nur einen Datentraeger', async () => {
+    const eigenerLeser = await vieleFotos(20);
+
+    const ergebnis = await fuehreLaufAus({
+      wurzel,
+      quelle: { ...quelle, art: 'ordner' },
+      leser: eigenerLeser,
+      abbruch: () => 'nutzer',
+    });
+
+    expect(quelle.name).toBe('Test');
+    expect(ergebnis.abgebrochen).toBe('nutzer');
+    expect(ergebnis.abschluss).toBe('abgebrochen');
+    expect(ergebnis.neu).toBe(0);
+  });
+
+  it('vermerkt den Abbruch im Protokoll', async () => {
+    const eigenerLeser = await vieleFotos(5);
+
+    const ergebnis = await fuehreLaufAus({
+      wurzel,
+      quelle,
+      leser: eigenerLeser,
+      abbruch: () => 'nutzer',
+    });
+
+    const protokoll = await readFile(join(wurzel, ergebnis.protokoll), 'utf8');
+    expect(protokoll).toContain('Abschluss:     abgebrochen');
   });
 });
 

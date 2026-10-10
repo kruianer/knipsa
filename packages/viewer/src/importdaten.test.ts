@@ -250,6 +250,47 @@ describe('Ordner wählen', () => {
   });
 });
 
+describe('Abbrechen', () => {
+  it('schickt den Abbruch an den Server und zeigt den neuen Stand', async () => {
+    const gerufen: string[] = [];
+    const abrufen = (url: string, optionen?: RequestInit): Promise<Response> => {
+      gerufen.push(`${String(optionen?.method ?? 'GET')} ${url}`);
+      if (url === '/api/import/abbrechen') {
+        return Promise.resolve(
+          antwort({ quellen, laufend: { ...laufend, abbruch: 'nutzer' }, laeufe: [] }, 202),
+        );
+      }
+      return Promise.resolve(antwort({ quellen, laufend, laeufe: [] }));
+    };
+
+    await fuehreImportBereich(bereich, abrufen, { warte: sofort, weiter: () => false });
+    bereich.querySelector<HTMLButtonElement>('.import-abbrechen')?.click();
+
+    await vi.waitFor(() => {
+      expect(bereich.querySelector('.import-fortschritt')?.textContent).toContain(
+        'wird abgebrochen',
+      );
+    });
+    expect(gerufen).toContain('POST /api/import/abbrechen');
+  });
+
+  it('meldet es, wenn der Server den Abbruch abweist', async () => {
+    const abrufen = (url: string): Promise<Response> => {
+      if (url === '/api/import/abbrechen') {
+        return Promise.resolve(antwort({ fehler: 'Kein Import läuft' }, 409));
+      }
+      return Promise.resolve(antwort({ quellen, laufend, laeufe: [] }));
+    };
+
+    await fuehreImportBereich(bereich, abrufen, { warte: sofort, weiter: () => false });
+    bereich.querySelector<HTMLButtonElement>('.import-abbrechen')?.click();
+
+    await vi.waitFor(() => {
+      expect(bereich.querySelector('.import-meldung')?.textContent).toBe('Kein Import läuft');
+    });
+  });
+});
+
 describe('zweiter Import', () => {
   it('zeigt die Meldung des Servers und startet keinen zweiten Lauf', async () => {
     const gestartet: string[] = [];

@@ -8,6 +8,7 @@ import type { Datentraeger } from './datentraeger.js';
 import {
   ImportDienst,
   ImportLaeuftBereits,
+  KeinImportLaeuft,
   QuelleNichtVerfuegbar,
   UnbekannteQuelle,
   type LaufFunktion,
@@ -37,6 +38,7 @@ function ergebnis(quelle: string): LaufErgebnis {
     uebersprungen: 0,
     problem: 0,
     dateien: [],
+    abschluss: 'Vollständig im Archiv',
     protokoll: `protokoll/import/20261010-080000-${quelle}.log`,
   };
 }
@@ -389,6 +391,72 @@ describe('eingesteckte Datentraeger als Quelle', () => {
     });
 
     expect((await dienst.zustand()).quellen).toEqual([]);
+  });
+});
+
+describe('Abbrechen', () => {
+  /** Lauf, der auf den Abbruch wartet und ihn im Ergebnis vermerkt. */
+  function abbrechbarerLauf(): LaufFunktion {
+    return async ({ quelle, abbruch, melde }) => {
+      melde({ erledigt: 50, gesamt: 200 });
+
+      let grund = abbruch?.();
+      while (grund === undefined) {
+        await new Promise((fertig) => setTimeout(fertig, 1));
+        grund = abbruch?.();
+      }
+
+      return { ...ergebnis(quelle.name), abgebrochen: grund, abschluss: 'abgebrochen', neu: 50 };
+    };
+  }
+
+  it('beendet den Lauf und merkt ihn als abgebrochen', async () => {
+    const dienst = baueDienst(abbrechbarerLauf());
+    await dienst.starte('Test');
+
+    dienst.brecheAb();
+
+    // Die Seite sieht den Abbruch sofort, auch vor dem Ende des Laufs.
+    expect((await dienst.zustand()).laufend?.abbruch).toBe('nutzer');
+
+    await dienst.arbeit();
+    const zustand = await dienst.zustand();
+    expect(zustand.laufend).toBeUndefined();
+    expect(zustand.laeufe[0]?.abgebrochen).toBe('nutzer');
+    expect(zustand.laeufe[0]?.abschluss).toBe('abgebrochen');
+  });
+
+  it('bricht auch einen Lauf aus der Ordner-Quelle Test ab', async () => {
+    const dienst = baueDienst(abbrechbarerLauf());
+    await dienst.starte('Test');
+
+    dienst.brecheAb();
+    await dienst.arbeit();
+
+    expect((await dienst.zustand()).laeufe[0]?.quelle).toBe('Test');
+  });
+
+  it('weist das Abbrechen ab, wenn kein Import laeuft', async () => {
+    const dienst = baueDienst(abbrechbarerLauf());
+
+    expect(() => dienst.brecheAb()).toThrow(KeinImportLaeuft);
+    expect(() => dienst.brecheAb()).toThrow('Kein Import läuft');
+  });
+
+  it('laesst den naechsten Lauf wieder ganz durchlaufen', async () => {
+    const dienst = baueDienst(abbrechbarerLauf());
+    await dienst.starte('Test');
+    dienst.brecheAb();
+    await dienst.arbeit();
+
+    // Der zweite Lauf wartet erneut auf einen Abbruch — der Dienst darf
+    // den alten Grund nicht mitnehmen.
+    await dienst.starte('Test');
+    expect((await dienst.zustand()).laufend?.abbruch).toBeUndefined();
+    dienst.brecheAb();
+    await dienst.arbeit();
+
+    expect((await dienst.zustand()).laeufe).toHaveLength(2);
   });
 });
 

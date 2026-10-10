@@ -36,6 +36,7 @@ export function protokollText(ergebnis: LaufErgebnis): string {
     `Schon bekannt: ${ergebnis.bekannt}`,
     `Uebersprungen: ${ergebnis.uebersprungen}`,
     `Problem:       ${ergebnis.problem}`,
+    `Abschluss:     ${ergebnis.abschluss}`,
     '',
   ];
 

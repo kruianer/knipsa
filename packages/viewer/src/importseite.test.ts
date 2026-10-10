@@ -10,7 +10,13 @@ import {
 
 /** Aktionen, von denen der Test nur die interessanten besetzt. */
 function aktionen(teile: Partial<ImportAktionen> = {}): ImportAktionen {
-  return { starte: () => {}, zeigeOrdner: () => {}, schliesseOrdner: () => {}, ...teile };
+  return {
+    starte: () => {},
+    zeigeOrdner: () => {},
+    schliesseOrdner: () => {},
+    brecheAb: () => {},
+    ...teile,
+  };
 }
 
 let bereich: HTMLElement;
@@ -270,6 +276,42 @@ describe('Fortschritt', () => {
   });
 });
 
+describe('Abbrechen', () => {
+  const laufend = {
+    quelle: 'NIKON D750',
+    begonnen: '2026-10-10T08:00:00.000Z',
+    erledigt: 50,
+    gesamt: 200,
+  };
+
+  it('zeigt waehrend eines Laufs den Knopf Abbrechen und meldet den Druck', () => {
+    const brecheAb = vi.fn();
+    zeichneImport(bereich, { ...leer, laufend }, aktionen({ brecheAb }));
+
+    const knopf = bereich.querySelector<HTMLButtonElement>('.import-abbrechen');
+    expect(knopf?.textContent).toBe('Abbrechen');
+    expect(knopf?.disabled).toBe(false);
+    knopf?.click();
+
+    expect(brecheAb).toHaveBeenCalledWith();
+  });
+
+  it('zeigt ohne laufenden Import keinen Knopf Abbrechen', () => {
+    zeichneImport(bereich, leer, aktionen());
+
+    expect(bereich.querySelector('.import-abbrechen')).toBeNull();
+  });
+
+  it('sagt es, sobald abgebrochen wird, und sperrt den Knopf', () => {
+    zeichneImport(bereich, { ...leer, laufend: { ...laufend, abbruch: 'nutzer' } }, aktionen());
+
+    expect(bereich.querySelector('.import-fortschritt')?.textContent).toBe(
+      'NIKON D750: 50 von 200 Dateien — wird abgebrochen, bitte warten …',
+    );
+    expect(bereich.querySelector<HTMLButtonElement>('.import-abbrechen')?.disabled).toBe(true);
+  });
+});
+
 describe('Ergebnis', () => {
   it('zeigt jeden Lauf, den der Server meldet', () => {
     const laeufe = Array.from({ length: 10 }, (_eintrag, stelle) => ({
@@ -340,6 +382,7 @@ describe('Ergebnis', () => {
 
     const lauf = bereich.querySelector('.lauf');
     expect(lauf?.querySelector('summary')?.textContent).toContain('Test');
+    expect(lauf?.querySelector('.lauf-abschluss')).toBeNull();
     expect(lauf?.querySelector('summary')?.textContent).toContain(
       '1 neu, 1 schon bekannt, 1 übersprungen, 1 Problem',
     );

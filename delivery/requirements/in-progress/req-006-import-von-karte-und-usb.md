@@ -51,10 +51,10 @@ Problemfälle, Übersprungenes und Ergebnis gelten unverändert wie dort.
 - [x] Given die Karte enthält `DCIM/100NIKON` und `DCIM/101NIKON`, when
   ich über "Ordner wählen …" `DCIM/101NIKON` importiere, then enthält das
   Ergebnis nur Dateien aus `DCIM/101NIKON`.
-- [ ] Given ein Import mit 200 Dateien läuft, when ich nach etwa 50
+- [x] Given ein Import mit 200 Dateien läuft, when ich nach etwa 50
   Dateien "Abbrechen" drücke, then endet der Lauf als "abgebrochen" und
   die bis dahin importierten Fotos liegen vollständig im Wartebereich.
-- [ ] Given ein Import aus der Ordner-Quelle "Test" läuft, when ich
+- [x] Given ein Import aus der Ordner-Quelle "Test" läuft, when ich
   "Abbrechen" drücke, then endet auch dieser Lauf als "abgebrochen".
 - [ ] Given ein Import von der Karte läuft, when ich die Karte
   herausziehe, then endet der Lauf mit "abgebrochen — Datenträger

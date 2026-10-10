@@ -19,6 +19,7 @@ import type { QuellenEinstellung } from '@knipsa/shared';
 import { findeDatentraeger, type Datentraeger } from './datentraeger.js';
 import {
   fuehreLaufAus,
+  type AbbruchGrund,
   type Fortschritt,
   type LaufErgebnis,
   type Quelle,
@@ -45,6 +46,11 @@ export interface LaufenderImport {
   readonly begonnen: string;
   readonly erledigt: number;
   readonly gesamt: number;
+  /**
+   * Gesetzt, sobald abgebrochen wird. Der Lauf arbeitet dann noch die
+   * aktuelle Datei fertig.
+   */
+  readonly abbruch?: AbbruchGrund;
 }
 
 /** Alles, was die Seite "Import" braucht. */
@@ -70,6 +76,14 @@ export class UnbekannteQuelle extends Error {
   }
 }
 
+/** Es laeuft kein Import — es gibt nichts abzubrechen. */
+export class KeinImportLaeuft extends Error {
+  constructor() {
+    super('Kein Import läuft');
+    this.name = 'KeinImportLaeuft';
+  }
+}
+
 /** Die Quelle ist eingestellt, aber gerade nicht erreichbar. */
 export class QuelleNichtVerfuegbar extends Error {
   constructor(readonly quelle: string) {
@@ -84,6 +98,7 @@ export type LaufFunktion = (auftrag: {
   readonly quelle: Quelle;
   readonly ordner: string;
   readonly leser: MetadatenLeser;
+  readonly abbruch: () => AbbruchGrund | undefined;
   readonly melde: (fortschritt: Fortschritt) => void;
 }) => Promise<LaufErgebnis>;
 
@@ -141,6 +156,7 @@ export class ImportDienst {
 
   #laufend: LaufenderImport | undefined;
   #arbeit: Promise<void> | undefined;
+  #abbruch: AbbruchGrund | undefined;
 
   constructor({
     wurzel,
@@ -243,6 +259,7 @@ export class ImportDienst {
       await ordnerPfad(quelle.pfad, begrenzt);
     }
 
+    this.#abbruch = undefined;
     this.#laufend = {
       quelle: quelle.name,
       ...(begrenzt === '' ? {} : { ordner: begrenzt }),
@@ -254,6 +271,21 @@ export class ImportDienst {
     this.#arbeit = this.#arbeite(quelle, begrenzt);
   }
 
+  /**
+   * Bricht den laufenden Import ab. Der Lauf endet nach der gerade
+   * bearbeiteten Datei; alles bis dahin bleibt importiert.
+   */
+  brecheAb(grund: AbbruchGrund = 'nutzer'): void {
+    if (this.#laufend === undefined) {
+      throw new KeinImportLaeuft();
+    }
+
+    this.#abbruch = grund;
+    // Die Seite soll sofort sehen, dass abgebrochen wird — auch wenn der
+    // Lauf noch an der aktuellen Datei arbeitet.
+    this.#laufend = { ...this.#laufend, abbruch: grund };
+  }
+
   async #arbeite(quelle: Quelle, ordner: string): Promise<void> {
     const leser = this.#leser();
     try {
@@ -262,6 +294,7 @@ export class ImportDienst {
         quelle,
         ordner,
         leser,
+        abbruch: () => this.#abbruch,
         melde: (fortschritt) => {
           if (this.#laufend !== undefined) {
             this.#laufend = { ...this.#laufend, ...fortschritt };
@@ -278,6 +311,7 @@ export class ImportDienst {
     } finally {
       await leser.schliesse();
       this.#laufend = undefined;
+      this.#abbruch = undefined;
     }
   }
 

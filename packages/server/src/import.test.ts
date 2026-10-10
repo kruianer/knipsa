@@ -32,6 +32,7 @@ function ergebnis(quelle: string): LaufErgebnis {
         ablage: '_wartend/2019-06/20190614-101500a.NEF',
       },
     ],
+    abschluss: 'Vollständig im Archiv',
     protokoll: 'protokoll/import/20191010-080000-Test.log',
   };
 }
@@ -128,6 +129,52 @@ describe('GET /api/import/ordner', () => {
     expect(quelle.statusCode).toBe(404);
     expect(ordner.statusCode).toBe(404);
     expect(ordner.json().fehler).toBe('Ordner nicht bekannt');
+  });
+});
+
+describe('POST /api/import/abbrechen', () => {
+  /** Lauf, der laeuft, bis abgebrochen wird. */
+  function abbrechbar(): ImportDienst {
+    return new ImportDienst({
+      wurzel,
+      quellen: [{ name: 'Test', pfad: quellenPfad }],
+      lauf: async ({ quelle, abbruch, melde }) => {
+        melde({ erledigt: 50, gesamt: 200 });
+        let grund = abbruch?.();
+        while (grund === undefined) {
+          await new Promise((fertig) => setTimeout(fertig, 1));
+          grund = abbruch?.();
+        }
+        return { ...ergebnis(quelle.name), abgebrochen: grund, abschluss: 'abgebrochen' };
+      },
+      leser: () => ({
+        leseAufnahmezeit: () => Promise.resolve({ art: 'keineZeit' as const }),
+        schliesse: () => Promise.resolve(),
+      }),
+    });
+  }
+
+  it('beendet den laufenden Import als abgebrochen', async () => {
+    const dienst = abbrechbar();
+    const { app: server } = starte(dienst);
+    await server.inject({ method: 'POST', url: '/api/import/start', payload: { quelle: 'Test' } });
+
+    const antwort = await server.inject({ method: 'POST', url: '/api/import/abbrechen' });
+    await dienst.arbeit();
+
+    expect(antwort.statusCode).toBe(202);
+    expect(antwort.json().laufend?.abbruch).toBe('nutzer');
+    const zustand = await server.inject({ method: 'GET', url: '/api/import' });
+    expect(zustand.json().laeufe[0]?.abschluss).toBe('abgebrochen');
+  });
+
+  it('antwortet 409, wenn kein Import laeuft', async () => {
+    const { app: server } = starte();
+
+    const antwort = await server.inject({ method: 'POST', url: '/api/import/abbrechen' });
+
+    expect(antwort.statusCode).toBe(409);
+    expect(antwort.json().fehler).toBe('Kein Import läuft');
   });
 });
 

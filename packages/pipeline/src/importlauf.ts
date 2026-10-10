@@ -61,6 +61,12 @@ export const GRUND_JPEG_NEBEN_NEF = 'JPEG neben gleichnamiger NEF';
 export const GRUND_SIDECAR_BEKANNT = 'Sidecar zu bekanntem Foto nicht übernommen';
 export const GRUND_SIDECAR_PROBLEM = 'Sidecar zu Problemfall nicht übernommen';
 
+/**
+ * Warum ein Lauf vorzeitig endet: `nutzer` auf Knopfdruck, `entfernt`
+ * weil der Datentraeger herausgezogen wurde.
+ */
+export type AbbruchGrund = 'nutzer' | 'entfernt';
+
 /** Eine Datei im Ergebnis eines Laufs. */
 export interface ErgebnisEintrag {
   readonly art: ErgebnisArt;
@@ -93,8 +99,53 @@ export interface LaufErgebnis {
   readonly uebersprungen: number;
   readonly problem: number;
   readonly dateien: readonly ErgebnisEintrag[];
+  /** Grund, falls der Lauf vorzeitig endete; fehlt bei einem ganzen Lauf. */
+  readonly abgebrochen?: AbbruchGrund;
+  /**
+   * Abschluss des Laufs im Wortlaut der Seite: "abgebrochen",
+   * "Vollständig im Archiv — kann formatiert werden" und so weiter.
+   */
+  readonly abschluss: string;
   /** Pfad des Protokolls im Foto-Baum, relativ zur Wurzel. */
   readonly protokoll: string;
+}
+
+/** Was der Abschluss-Satz eines Laufs braucht. */
+export interface AbschlussAngaben {
+  readonly art: QuellenArt;
+  /** Ordner, auf den der Lauf begrenzt war; `''` ist die ganze Quelle. */
+  readonly ordner: string;
+  readonly abgebrochen: AbbruchGrund | undefined;
+  readonly problem: number;
+}
+
+/**
+ * Der Abschluss-Satz eines Laufs — die Antwort auf "darf ich die Karte
+ * jetzt formatieren?".
+ *
+ * Nur ein Lauf ueber einen ganzen Datentraeger, der weder abgebrochen
+ * wurde noch einen Problemfall hatte, darf zum Formatieren raten. Nach
+ * einem Ordner-Lauf sagt der Satz nichts ueber den Rest des Mediums und
+ * deshalb nichts ueber das Formatieren.
+ */
+export function abschlussText({ art, ordner, abgebrochen, problem }: AbschlussAngaben): string {
+  if (abgebrochen === 'entfernt') {
+    return 'abgebrochen — Datenträger entfernt';
+  }
+  if (abgebrochen !== undefined) {
+    return 'abgebrochen';
+  }
+  if (problem > 0) {
+    return `nicht vollständig — ${problem} ${problem === 1 ? 'Problemfall' : 'Problemfälle'}`;
+  }
+  if (ordner !== '') {
+    const name = ordner.split('/').at(-1) ?? ordner;
+    return `Ordner ${name} vollständig im Archiv`;
+  }
+
+  return art === 'datentraeger'
+    ? 'Vollständig im Archiv — kann formatiert werden'
+    : 'Vollständig im Archiv';
 }
 
 /** Fortschritt eines laufenden Imports: "x von y Dateien". */
@@ -113,6 +164,11 @@ export interface LaufOptionen {
    */
   readonly ordner?: string;
   readonly leser: MetadatenLeser;
+  /**
+   * Wird vor jeder Datei gefragt. Gibt sie einen Grund, endet der Lauf
+   * nach der gerade bearbeiteten Datei.
+   */
+  readonly abbruch?: () => AbbruchGrund | undefined;
   /** Wird nach jeder Datei gerufen. */
   readonly melde?: (fortschritt: Fortschritt) => void;
   /** Uhr; in Tests festgehalten. */
@@ -244,6 +300,7 @@ export async function fuehreLaufAus({
   quelle,
   ordner = '',
   leser,
+  abbruch,
   melde,
   jetzt = () => new Date(),
 }: LaufOptionen): Promise<LaufErgebnis> {
@@ -296,9 +353,21 @@ export async function fuehreLaufAus({
     abgeschlossen();
   };
 
+  // Ein Abbruch wirkt immer erst nach der gerade bearbeiteten Datei:
+  // dann ist entweder alles an ihr fertig oder nichts von ihr begonnen.
+  let abgebrochen: AbbruchGrund | undefined;
+  const sollWeiter = (): boolean => {
+    abgebrochen = abgebrochen ?? abbruch?.();
+    return abgebrochen === undefined;
+  };
+
   // Erster Durchgang: einordnen, Pruefsummen bilden, Aufnahmezeit lesen.
   const einheiten: Einheit[] = [];
   for (const datei of dateien) {
+    if (!sollWeiter()) {
+      break;
+    }
+
     if (datei.art === 'video') {
       uebersprungen(datei, GRUND_VIDEO);
       continue;
@@ -380,6 +449,10 @@ export async function fuehreLaufAus({
   // Zweiter Durchgang: Schluessel in Aufnahmereihenfolge vergeben und
   // die Einheit uebernehmen.
   for (const einheit of [...einheiten].sort(nachAufnahmereihenfolge)) {
+    if (!sollWeiter()) {
+      break;
+    }
+
     const platz = gesehen.naechsterPlatz(einheit.sekundenTeil);
     const schluessel = baueSchluessel(einheit.sekundenTeil, platz);
     gesehen.belegeSchluessel(schluessel);
@@ -403,6 +476,7 @@ export async function fuehreLaufAus({
     .map((datei) => ergebnisse.get(datei.quellPfad))
     .filter((eintrag): eintrag is ErgebnisEintrag => eintrag !== undefined);
 
+  const problem = geordnet.filter((eintrag) => eintrag.art === 'problem').length;
   const ergebnis: LaufErgebnis = {
     quelle: quelle.name,
     ...(begrenzt === '' ? {} : { ordner: begrenzt }),
@@ -412,8 +486,10 @@ export async function fuehreLaufAus({
     neu: geordnet.filter((eintrag) => eintrag.art === 'neu').length,
     bekannt: geordnet.filter((eintrag) => eintrag.art === 'bekannt').length,
     uebersprungen: geordnet.filter((eintrag) => eintrag.art === 'uebersprungen').length,
-    problem: geordnet.filter((eintrag) => eintrag.art === 'problem').length,
+    problem,
     dateien: geordnet,
+    ...(abgebrochen === undefined ? {} : { abgebrochen }),
+    abschluss: abschlussText({ art: quelle.art, ordner: begrenzt, abgebrochen, problem }),
     protokoll: posix.join('protokoll', 'import', protokollName(quelle.name, begonnen)),
   };
 

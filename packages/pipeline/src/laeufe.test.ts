@@ -26,6 +26,7 @@ function lauf(nummer: number): LaufErgebnis {
     uebersprungen: 0,
     problem: 0,
     dateien: [],
+    abschluss: 'Vollständig im Archiv',
     protokoll: `protokoll/import/20261010-${stunde}0000-Test.log`,
   };
 }

@@ -5,6 +5,8 @@
  * - `GET  /api/import/ordner` — die Ordner einer Quelle, Ebene fuer Ebene.
  * - `POST /api/import/start` — startet einen Lauf fuer eine Quelle,
  *   wahlweise begrenzt auf einen Ordner darin.
+ * - `POST /api/import/abbrechen` — beendet den laufenden Import nach der
+ *   gerade bearbeiteten Datei.
  *
  * Die Antworten enthalten Pfade innerhalb der Quelle und Schluessel,
  * aber nie Bilder und nie den Pfad der Foto-Wurzel.
@@ -14,6 +16,7 @@ import type { FastifyInstance } from 'fastify';
 
 import {
   ImportLaeuftBereits,
+  KeinImportLaeuft,
   QuelleNichtVerfuegbar,
   UnbekannteQuelle,
   UnbekannterOrdner,
@@ -73,15 +76,36 @@ export function registriereImportRouten(app: FastifyInstance, dienst: ImportDien
       .header('cache-control', 'no-store')
       .send(await dienst.zustand());
   });
+
+  app.post('/api/import/abbrechen', async (_anfrage, antwort) => {
+    try {
+      dienst.brecheAb();
+    } catch (fehler) {
+      return antwort
+        .code(statusZu(fehler))
+        .header('cache-control', 'no-store')
+        .send({ fehler: (fehler as Error).message });
+    }
+
+    return antwort
+      .code(202)
+      .header('cache-control', 'no-store')
+      .send(await dienst.zustand());
+  });
 }
 
 /**
- * `409` wenn schon ein Lauf laeuft, `404` fuer eine unbekannte Quelle
- * oder einen unbekannten Ordner, `409` fuer eine nicht erreichbare
- * Quelle — alles Faelle, die die Seite dem Nutzer im Klartext zeigt.
+ * `409` wenn schon ein Lauf laeuft, keiner laeuft oder die Quelle nicht
+ * erreichbar ist, `404` fuer eine unbekannte Quelle oder einen
+ * unbekannten Ordner — alles Faelle, die die Seite dem Nutzer im
+ * Klartext zeigt.
  */
 function statusZu(fehler: unknown): number {
-  if (fehler instanceof ImportLaeuftBereits || fehler instanceof QuelleNichtVerfuegbar) {
+  if (
+    fehler instanceof ImportLaeuftBereits ||
+    fehler instanceof QuelleNichtVerfuegbar ||
+    fehler instanceof KeinImportLaeuft
+  ) {
     return 409;
   }
   if (fehler instanceof UnbekannteQuelle || fehler instanceof UnbekannterOrdner) {

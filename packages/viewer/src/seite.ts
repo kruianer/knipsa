@@ -1,4 +1,4 @@
-import { holeImportZustand, holeOrdner, starteImport } from './importdaten.js';
+import { brecheImportAb, holeImportZustand, holeOrdner, starteImport } from './importdaten.js';
 import {
   IMPORT_UNBEKANNT,
   zeichneImport,
@@ -140,6 +140,13 @@ export async function fuehreImportBereich(
         schliesseOrdner: () => {
           ordnerwahl = undefined;
           zeige(letzter);
+        },
+        brecheAb: () => {
+          void (async () => {
+            const nachher = await brecheImportAb(abrufen);
+            meldung = nachher.meldung;
+            zeige(nachher);
+          })();
         },
       },
     );

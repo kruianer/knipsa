@@ -27,6 +27,8 @@ export interface LaufenderImport {
   readonly begonnen: string;
   readonly erledigt: number;
   readonly gesamt: number;
+  /** Gesetzt, sobald abgebrochen wird; der Lauf endet dann gleich. */
+  readonly abbruch?: string;
 }
 
 /** Ein Ordner in der Quelle, wie der Server ihn meldet. */
@@ -73,6 +75,11 @@ export interface LaufErgebnis {
   readonly uebersprungen: number;
   readonly problem: number;
   readonly dateien: readonly ErgebnisEintrag[];
+  /**
+   * Abschluss des Laufs im Wortlaut des Servers. Laeufe aus req-005
+   * haben ihn noch nicht; dann steht er nicht da.
+   */
+  readonly abschluss?: string;
   readonly protokoll: string;
 }
 
@@ -94,6 +101,8 @@ export interface ImportAktionen {
   readonly zeigeOrdner: (quelle: string, ordner: string) => void;
   /** Ordner-Auswahl schliessen. */
   readonly schliesseOrdner: () => void;
+  /** Laufenden Import abbrechen. */
+  readonly brecheAb: () => void;
 }
 
 /** Zustand, solange der Server noch nicht geantwortet hat. */
@@ -279,6 +288,12 @@ function zeichneLauf(dokument: Document, lauf: LaufErgebnis): HTMLElement {
     `${lauf.neu} neu, ${lauf.bekannt} schon bekannt, ` +
     `${lauf.uebersprungen} übersprungen, ${lauf.problem} Problem`;
 
+  if (lauf.abschluss !== undefined) {
+    const abschluss = element(dokument, 'span', 'lauf-abschluss');
+    abschluss.textContent = ` — ${lauf.abschluss}`;
+    kopf.append(abschluss);
+  }
+
   const liste = element(dokument, 'ul', 'lauf-dateien');
   for (const eintrag of lauf.dateien) {
     const zeile = element(dokument, 'li');
@@ -338,8 +353,22 @@ export function zeichneImport(
       zustand.laufend.ordner === undefined
         ? zustand.laufend.quelle
         : `${zustand.laufend.quelle} / ${zustand.laufend.ordner}`;
-    fortschritt.textContent = `${woher}: ${fortschrittText(zustand.laufend)}`;
-    teile.push(fortschritt);
+    const abbruch =
+      zustand.laufend.abbruch === undefined ? '' : ' — wird abgebrochen, bitte warten …';
+    fortschritt.textContent = `${woher}: ${fortschrittText(zustand.laufend)}${abbruch}`;
+
+    teile.push(
+      fortschritt,
+      knopfZu(
+        dokument,
+        'import-abbrechen',
+        'Abbrechen',
+        zustand.laufend.abbruch !== undefined,
+        () => {
+          aktionen.brecheAb();
+        },
+      ),
+    );
   }
 
   const laeufe = element(dokument, 'div', 'laeufe');
