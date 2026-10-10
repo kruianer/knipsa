@@ -675,6 +675,38 @@ describe('Abbrechen mitten im Lauf', () => {
     ).rejects.toThrow();
   });
 
+  it('importiert beim naechsten Lauf nur noch die fehlenden Fotos', async () => {
+    const eigenerLeser = await vieleFotos(10);
+    let erledigt = 0;
+
+    const erster = await fuehreLaufAus({
+      wurzel,
+      quelle: { ...quelle, art: 'datentraeger' },
+      leser: eigenerLeser,
+      abbruch: () => (erledigt >= 3 ? 'nutzer' : undefined),
+      melde: (fortschritt) => {
+        erledigt = fortschritt.erledigt;
+      },
+    });
+    expect(erster.neu).toBe(3);
+
+    // Dieselbe Quelle erneut: was schon im Archiv liegt, zaehlt als
+    // "schon bekannt", der Rest kommt als "neu" hinzu.
+    const zweiter = await fuehreLaufAus({
+      wurzel,
+      quelle: { ...quelle, art: 'datentraeger' },
+      leser: eigenerLeser,
+    });
+
+    expect(zweiter.abgebrochen).toBeUndefined();
+    expect(zweiter.bekannt).toBe(3);
+    expect(zweiter.neu).toBe(7);
+    expect(zweiter.gesamt).toBe(10);
+
+    // Jedes Foto liegt genau einmal im Wartebereich.
+    expect(await readdir(join(wurzel, 'original', '_wartend', '2019-06'))).toHaveLength(10);
+  });
+
   it('vermerkt den Abbruch im Protokoll', async () => {
     const eigenerLeser = await vieleFotos(5);
 

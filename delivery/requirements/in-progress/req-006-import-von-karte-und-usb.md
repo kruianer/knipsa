@@ -59,7 +59,7 @@ Problemfälle, Übersprungenes und Ergebnis gelten unverändert wie dort.
 - [x] Given ein Import von der Karte läuft, when ich die Karte
   herausziehe, then endet der Lauf mit "abgebrochen — Datenträger
   entfernt".
-- [ ] Given ein Lauf wurde abgebrochen, when ich dieselbe Quelle erneut
+- [x] Given ein Lauf wurde abgebrochen, when ich dieselbe Quelle erneut
   importiere, then werden nur die noch fehlenden Fotos als "neu"
   importiert und die übrigen als "schon bekannt" gezählt.
 - [ ] Given die ganze Karte wurde ohne Abbruch und ohne Problemfall
