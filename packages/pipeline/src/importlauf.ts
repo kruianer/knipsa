@@ -32,6 +32,7 @@ import { GesehenListe, type GesehenEintrag } from './gesehen.js';
 import type { MetadatenLeser } from './metadaten.js';
 import { legeProblemAb } from './problem.js';
 import { schreibeProtokoll } from './protokoll.js';
+import { raeumeTeileAuf } from './teilaufraeumen.js';
 
 /** Wie eine Datei im Ergebnis eines Laufs gezaehlt wird. */
 export type ErgebnisArt = 'neu' | 'bekannt' | 'uebersprungen' | 'problem';
@@ -225,6 +226,11 @@ export async function fuehreLaufAus({
 }: LaufOptionen): Promise<LaufErgebnis> {
   const begonnen = jetzt();
   const gesehen = await GesehenListe.lade(wurzel);
+
+  // Zuerst die Spuren eines abgebrochenen Laufs klaeren: entweder gehoert
+  // eine liegengebliebene Kopie ins Archiv, oder sie wird verworfen.
+  await raeumeTeileAuf(wurzel, gesehen);
+
   const dateien = await sammleDateien(quelle.pfad);
   const gesamt = dateien.length;
 

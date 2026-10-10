@@ -1,4 +1,4 @@
-import { mkdtemp, readdir, readFile } from 'node:fs/promises';
+import { mkdtemp, readdir, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -415,6 +415,96 @@ describe('schon bekannte Dateien', () => {
       '20190614-101500a.xmp',
       '20190614-101502a.NEF',
     ]);
+  });
+});
+
+describe('Neustart mitten in einem Lauf', () => {
+  /** Drei Fotos; das zweite laesst den Lauf scheitern. */
+  async function dreiFotos(): Promise<void> {
+    await schreibeDatei(
+      join(quelle.pfad, 'reise', 'DSC_0001.NEF'),
+      nefBytes({ datum: '2019:06:14 10:15:00' }),
+    );
+    await schreibeDatei(
+      join(quelle.pfad, 'reise', 'DSC_0002.NEF'),
+      nefBytes({ datum: '2019:06:14 10:15:01' }),
+    );
+    await schreibeDatei(
+      join(quelle.pfad, 'reise', 'DSC_0003.NEF'),
+      nefBytes({ datum: '2019:06:14 10:15:02' }),
+    );
+  }
+
+  /** Leser, der bei der genannten Datei abbricht — wie ein Absturz. */
+  function brechenderLeser(bei: string): MetadatenLeser {
+    return {
+      leseAufnahmezeit: (pfad) =>
+        pfad.endsWith(bei) ? Promise.reject(new Error('Server weg')) : leser.leseAufnahmezeit(pfad),
+      schliesse: () => Promise.resolve(),
+    };
+  }
+
+  it('hat danach jedes Foto genau einmal mit je einem Schluessel', async () => {
+    await dreiFotos();
+
+    await expect(
+      fuehreLaufAus({ wurzel, quelle, leser: brechenderLeser('DSC_0002.NEF') }),
+    ).rejects.toThrow('Server weg');
+
+    const nachher = await lauf();
+
+    // Jede Datei genau einmal, jeder Schluessel genau einmal.
+    const schluessel = nachher.dateien.map((eintrag) => eintrag.schluessel);
+    expect(nachher.dateien.map((eintrag) => eintrag.quellPfad)).toEqual([
+      'reise/DSC_0001.NEF',
+      'reise/DSC_0002.NEF',
+      'reise/DSC_0003.NEF',
+    ]);
+    expect(new Set(schluessel).size).toBe(3);
+    expect((await readdir(join(wurzel, 'original', '_wartend', '2019-06'))).sort()).toEqual([
+      '20190614-101500a.NEF',
+      '20190614-101501a.NEF',
+      '20190614-101502a.NEF',
+    ]);
+  });
+
+  it('laesst keine halb kopierte Datei im Wartebereich liegen', async () => {
+    await dreiFotos();
+    await expect(
+      fuehreLaufAus({ wurzel, quelle, leser: brechenderLeser('DSC_0002.NEF') }),
+    ).rejects.toThrow();
+
+    // Ein Absturz nach dem Kopieren, aber vor dem Vermerk.
+    await schreibeDatei(join(wurzel, '.import-teil', '20190614-101509a.NEF'), 'halbe Datei');
+
+    await lauf();
+
+    expect(await readdir(join(wurzel, '.import-teil'))).toEqual([]);
+    for (const name of await readdir(join(wurzel, 'original', '_wartend', '2019-06'))) {
+      expect(name).not.toContain('20190614-101509a');
+    }
+  });
+
+  it('holt einen vermerkten, aber nicht umbenannten Schluessel nach', async () => {
+    await dreiFotos();
+    const erster = await lauf();
+    expect(erster.neu).toBe(3);
+
+    // Ein Absturz genau zwischen Vermerk und Umbenennen: die Datei liegt
+    // wieder in .import-teil, der Vermerk ist schon da.
+    const imBaum = join(wurzel, 'original', '_wartend', '2019-06', '20190614-101501a.NEF');
+    await schreibeDatei(
+      join(wurzel, '.import-teil', '20190614-101501a.NEF'),
+      await readFile(imBaum),
+    );
+    await rm(imBaum);
+
+    const zweiter = await lauf();
+
+    expect(await existiert(imBaum)).toBe(true);
+    expect(await readdir(join(wurzel, '.import-teil'))).toEqual([]);
+    expect(zweiter.neu).toBe(0);
+    expect(zweiter.bekannt).toBe(3);
   });
 });
 

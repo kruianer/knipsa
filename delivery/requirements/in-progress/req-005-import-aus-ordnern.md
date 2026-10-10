@@ -88,7 +88,7 @@ Quelle bleibt dabei unangetastet.
 - [x] Given ein Import läuft, when ich bei einer anderen Quelle
   "Importieren" drücke, then erscheint "Import läuft bereits" und kein
   zweiter Lauf startet.
-- [ ] Given der Server wird mitten in einem Lauf neu gestartet, when ich
+- [x] Given der Server wird mitten in einem Lauf neu gestartet, when ich
   danach erneut importiere, then sind alle Fotos genau einmal mit je einem
   Schlüssel im Ergebnis, und keine halb kopierte Datei liegt im
   Wartebereich.

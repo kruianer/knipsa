@@ -50,3 +50,4 @@ export {
 } from './metadaten.js';
 export { protokollText, schreibeProtokoll } from './protokoll.js';
 export { legeProblemAb, type ProblemAblage, type ProblemAblageOptionen } from './problem.js';
+export { raeumeImportTeileAuf, raeumeTeileAuf, type TeilAufraeumung } from './teilaufraeumen.js';
