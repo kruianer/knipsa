@@ -103,7 +103,7 @@ nach dem Muster der anderen Apps des Betreibers)
 - [x] Given der DB-Container ist gestoppt, when ich `/health/ready`
   aufrufe, then antwortet es mit `503` und meldet die DB als `fehler`,
   während `/health/live` weiter `200` liefert.
-- [ ] Given ein Commit mit fehlschlagendem Test, when er auf `dev`
+- [x] Given ein Commit mit fehlschlagendem Test, when er auf `dev`
   gepusht wird, then wird nicht deployt und die vorherige Version bleibt
   erreichbar.
 - [x] Given die laufenden Container, when ich `docker ps` auf dem

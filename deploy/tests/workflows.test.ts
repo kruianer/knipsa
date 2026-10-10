@@ -7,6 +7,8 @@ interface Schritt {
   readonly name?: string;
   readonly uses?: string;
   readonly run?: string;
+  readonly if?: string;
+  readonly 'continue-on-error'?: boolean;
   readonly with?: Record<string, string>;
 }
 
@@ -97,5 +99,61 @@ describe.each(umgebungen)('$datei', ({ datei, env, branch, port }) => {
     const andere = env === 'dev' ? 'prod' : 'dev';
     expect(quelle).not.toContain(`knipsa-${andere}`);
     expect(quelle).not.toContain(`knipsa-env/${andere}.env`);
+  });
+});
+
+/**
+ * Qualitaetsschranke: Install, Lint, Typecheck und Tests laufen vor jedem
+ * Schritt, der die laufende Umgebung anfasst. Schlaegt einer davon fehl,
+ * bricht GitHub Actions den Job ab — die laufenden Container werden nicht
+ * angefasst und bleiben erreichbar.
+ */
+describe.each(umgebungen)('$datei: kein Deploy bei roten Tests', ({ datei }) => {
+  const { quelle, workflow } = lade(datei);
+  const alle = schritte(workflow);
+
+  function index(muster: RegExp): number {
+    return alle.findIndex((schritt) => muster.test(schritt.run ?? ''));
+  }
+
+  const install = index(/pnpm install --frozen-lockfile/);
+  const lint = index(/pnpm lint/);
+  const typecheck = index(/pnpm typecheck/);
+  const test = index(/pnpm -r test/);
+  const up = index(/up -d --build/);
+
+  it('hat alle Schranken und den Deploy-Schritt', () => {
+    for (const [name, position] of Object.entries({ install, lint, typecheck, test, up })) {
+      expect(position, name).toBeGreaterThanOrEqual(0);
+    }
+  });
+
+  it('fuehrt Install, Lint, Typecheck und Tests vor dem Deploy aus', () => {
+    expect(install).toBeLessThan(lint);
+    expect(lint).toBeLessThan(typecheck);
+    expect(typecheck).toBeLessThan(test);
+    expect(test).toBeLessThan(up);
+  });
+
+  it('laesst keinen Schritt Fehler verschlucken', () => {
+    for (const schritt of alle) {
+      expect(schritt['continue-on-error'], schritt.name).not.toBe(true);
+      expect(schritt.if, schritt.name).toBeUndefined();
+      expect(schritt.run ?? '', schritt.name).not.toContain('|| true');
+    }
+  });
+
+  it('stoppt die laufende Version nicht vorab', () => {
+    // `up -d --build` baut zuerst und ersetzt die Container erst danach.
+    // Ein `down`/`stop`/`rm` davor wuerde die alte Version abschalten,
+    // auch wenn der neue Stand nicht hochkommt.
+    expect(quelle).not.toMatch(/docker compose[^\n]*\b(down|stop|rm)\b/);
+    expect(quelle).not.toMatch(/docker\s+(stop|rm|kill)\b/);
+  });
+
+  it('prueft die neue Version nach dem Start und bricht sonst ab', () => {
+    const health = index(/health-check\.sh/);
+    expect(health).toBeGreaterThan(up);
+    expect(leseDatei('deploy/health-check.sh')).toContain('exit 1');
   });
 });
