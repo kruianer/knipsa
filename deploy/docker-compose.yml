@@ -58,7 +58,9 @@ services:
     volumes:
       # Benanntes Volume; Compose stellt den Projektnamen davor, dev und
       # prod haben damit getrennte Volumes.
-      - db-daten:/var/lib/postgresql/data
+      # Ab Postgres 18 liegt das Volume eine Ebene hoeher; die Daten landen
+      # dann versionsabhaengig in /var/lib/postgresql/18/docker.
+      - db-daten:/var/lib/postgresql
     restart: unless-stopped
     healthcheck:
       test: ['CMD-SHELL', 'pg_isready -U "$$POSTGRES_USER" -d "$$POSTGRES_DB"']
