@@ -29,7 +29,9 @@ Getrennte Umgebungen auf demselben Host:
 | Compose-Projekt | `knipsa-dev` | `knipsa-prod` |
 | env-Datei (Secrets) | `~/knipsa-env/dev.env` | `~/knipsa-env/prod.env` |
 | Datenbank | eigene Postgres-DB `knipsa_dev` | eigene Postgres-DB `knipsa_prod` |
-| Foto-Baum | Test-Baum `<TODO: Pfad, z.B. NAS:/fotos-dev>` | echter Baum `<TODO: Pfad, z.B. NAS:/fotos>` |
+| Foto-Baum (aktuell) | `/home/kruianer/knipsa-fotos/dev` (lokal, leer) | `/home/kruianer/knipsa-fotos/prod-platzhalter` (lokal, leer) |
+| Foto-Baum (Ziel) | Test-Baum auf dem NAS `<TODO: Mountpunkt nach NAS-Einbindung>` | echter Baum auf dem NAS `<TODO: Mountpunkt nach NAS-Einbindung>` |
+| Runner | `beelink-knipsa` (`runs-on: [self-hosted, knipsa]`), `~/actions-runner-knipsa` | dto. |
 | Gesehen-Liste | im Test-Baum | im echten Baum (wird gesichert) |
 
 - dev arbeitet NIE auf dem echten Foto-Baum, auch nicht lesend. Der

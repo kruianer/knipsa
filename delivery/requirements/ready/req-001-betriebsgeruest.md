@@ -45,9 +45,11 @@ Umgebungen, unterschieden über Projektname und env-Datei)
   benanntes Volume je Compose-Projekt, **keine** `ports:` — nur im
   Docker-Netz erreichbar. Die Extension `vector` ist aktiviert.
 - Foto-Baum: als Volume eingebunden, Pfad aus `FOTOS_ROOT` der env-Datei
-  (dev: Test-Baum, prod: echter Baum — siehe `delivery/devops.md`). Im
-  Container immer unter `/fotos`. In diesem Requirement nur lesend
-  eingebunden (`:ro`), da noch nichts geschrieben wird.
+  (siehe `delivery/devops.md`). Im Container immer unter `/fotos`. In
+  diesem Requirement nur lesend eingebunden (`:ro`), da noch nichts
+  geschrieben wird. Vorerst zeigt `FOTOS_ROOT` auf lokale, leere Ordner
+  (`/home/kruianer/knipsa-fotos/dev` bzw. `.../prod-platzhalter`); die
+  NAS-Einbindung folgt später nur durch Ändern von `FOTOS_ROOT`.
 
 | | dev | prod |
 |---|---|---|
@@ -56,20 +58,31 @@ Umgebungen, unterschieden über Projektname und env-Datei)
 | URL im LAN | `http://192.168.2.200:8098` | `http://192.168.2.200:8099` |
 
 **Konfiguration** (nur Variablennamen im Repo, Werte in
-`/home/kruianer/knipsa-env/dev.env` bzw. `prod.env`)
+`/home/kruianer/knipsa-env/dev.env` bzw. `prod.env` — beide existieren
+bereits und sind befüllt)
 - `KNIPSA_ENV`, `KNIPSA_PORT`, `APP_ORIGIN` (vorerst die LAN-URL aus der
-  Tabelle), `POSTGRES_PASSWORD`, `DATABASE_URL`, `FOTOS_ROOT`.
+  Tabelle), `POSTGRES_USER`, `POSTGRES_PASSWORD`, `POSTGRES_DB`,
+  `DATABASE_URL` (zeigt auf Host `db`), `FOTOS_ROOT`.
 - Eine `deploy/example.env` listet alle Variablen ohne Werte.
 
-**Deploy** (`.github/workflows/`, Jobs auf dem self-hosted Runner des
-Beelink)
-- Push auf `dev` → Deploy `knipsa-dev`; Push/Merge auf `main` → Deploy
-  `knipsa-prod`.
-- Ablauf: `pnpm install` → `pnpm lint` → `pnpm typecheck` →
-  `pnpm -r test` → `docker compose -p knipsa-<env> build` → Migrationen →
-  `docker compose -p knipsa-<env> up -d` → Health-Check gegen
-  `/health/ready`. Schlägt ein Schritt fehl, ist der Workflow rot; schlägt
-  er vor `up -d` fehl, bleibt die laufende Version in Betrieb.
+**Deploy** (`.github/workflows/deploy-dev.yml` und `deploy-prod.yml`,
+nach dem Muster der anderen Apps des Betreibers)
+- Runner: `runs-on: [self-hosted, knipsa]` — der Runner `beelink-knipsa`
+  ist registriert und läuft.
+- Trigger: `deploy-dev.yml` bei Push auf `dev`, `deploy-prod.yml` bei
+  Push auf `main`; beide zusätzlich `workflow_dispatch`. `concurrency`
+  je Umgebung, `cancel-in-progress: false`.
+- Der Host hat Node 20 und kein pnpm: Node 24 per `actions/setup-node`
+  (`node-version-file: .nvmrc`), pnpm per `pnpm/action-setup` bzw.
+  Corepack — nichts global auf dem Host installieren.
+- Ablauf: `pnpm install --frozen-lockfile` → `pnpm lint` →
+  `pnpm typecheck` → `pnpm -r test` →
+  `docker compose -p knipsa-<env> --env-file "$HOME/knipsa-env/<env>.env" -f deploy/docker-compose.yml up -d --build --remove-orphans`
+  (Migrationen laufen beim Start des Servers vor dem Listen) →
+  Health-Check gegen `/health/ready` mit Wiederholungen →
+  `docker image prune -f` → `docker compose … ps`.
+- Schlägt ein Schritt vor `up` fehl, ist der Workflow rot und die
+  laufende Version bleibt in Betrieb.
 - Die Workflows lesen keine Secrets aus GitHub und geben keine Werte aus
   den env-Dateien aus.
 
@@ -113,9 +126,9 @@ Beelink)
   andere Apps auf dem Beelink).
 - Der Worker deployt nie selbst nach prod; prod entsteht nur durch den
   Merge des Betreibers auf `main` (siehe `delivery/devops.md`).
-- Vom Betreiber vorab zu erledigen (nicht Teil der Umsetzung): env-Dateien
-  anlegen und befüllen, self-hosted Runner registrieren, Branch `dev`
-  anlegen, NAS-Pfade für `FOTOS_ROOT` festlegen.
+- Bereits erledigt (nicht Teil der Umsetzung): env-Dateien angelegt und
+  befüllt, Runner `beelink-knipsa` registriert, Branch `dev` angelegt.
+  Die NAS-Einbindung ist nicht Voraussetzung für dieses Requirement.
 
 # Out of Scope
 
