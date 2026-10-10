@@ -415,6 +415,55 @@ describe('Alarm am Original', () => {
   });
 });
 
+describe('unbekannte Dateien', () => {
+  it('meldet eine von Hand abgelegte Datei mit Pfad und zaehlt sie nicht als Foto', async () => {
+    await legeFotoAb();
+    await schreibeDatei(imBaum(`${MONAT}/urlaub.jpg`), jpegBytes({ datum: AUFNAHME }));
+
+    const lauf = await fuehreAbgleichAus({ wurzel, index, leser: leserMit({}) });
+
+    expect(lauf.unbekannte).toBe(1);
+    expect(lauf.fotos).toBe(1);
+    expect(lauf.dateien).toBe(2);
+    await expect(index.liste('unbekannte', 500)).resolves.toEqual([`${MONAT}/urlaub.jpg`]);
+    await expect(index.liste('fotos', 500)).resolves.toEqual([SCHLUESSEL]);
+  });
+
+  it('meldet auch eine Datei mit beinahe richtigem Namen', async () => {
+    await schreibeDatei(imBaum(`${MONAT}/20190614-1015.NEF`), nefBytes({ datum: AUFNAHME }));
+    await schreibeDatei(imBaum(`${MONAT}/20190614-101500.NEF`), nefBytes({ datum: AUFNAHME }));
+
+    const lauf = await fuehreAbgleichAus({ wurzel, index, leser: leserMit({}) });
+
+    expect(lauf.fotos).toBe(0);
+    await expect(index.liste('unbekannte', 500)).resolves.toEqual([
+      `${MONAT}/20190614-1015.NEF`,
+      `${MONAT}/20190614-101500.NEF`,
+    ]);
+  });
+
+  it('nimmt eine unbekannte Datei nicht in den Index auf', async () => {
+    await schreibeDatei(imBaum(`${MONAT}/urlaub.jpg`), jpegBytes({ datum: AUFNAHME }));
+
+    await fuehreAbgleichAus({ wurzel, index, leser: leserMit({}) });
+
+    const stand = await index.lade();
+    expect(stand.dateien).toHaveLength(0);
+    expect(stand.fotos).toHaveLength(0);
+  });
+
+  it('uebergeht versteckte Dateien und Ordner still', async () => {
+    await legeFotoAb();
+    await schreibeDatei(imBaum(`${MONAT}/.DS_Store`), 'technisch');
+    await schreibeDatei(imBaum('.technik/zwischenstand'), 'technisch');
+
+    const lauf = await fuehreAbgleichAus({ wurzel, index, leser: leserMit({}) });
+
+    expect(lauf.unbekannte).toBe(0);
+    expect(lauf.dateien).toBe(2);
+  });
+});
+
 describe('pruefeAlarm', () => {
   const basis = {
     importPruefsumme: 'jetzt',

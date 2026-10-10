@@ -67,7 +67,7 @@ statt es Jahre später zu bemerken.
   when ich abgleiche, then erscheint der Alarm "Bilddaten verändert".
 - [x] Given ein Alarm "NEF verändert" steht an, when ich die
   ursprüngliche Datei zurücklege und abgleiche, then ist der Alarm weg.
-- [ ] Given ich kopiere `urlaub.jpg` von Hand nach
+- [x] Given ich kopiere `urlaub.jpg` von Hand nach
   `original/_wartend/2019-06/`, when ich abgleiche, then erscheint sie
   als "unbekannte Datei" und zählt NICHT als Foto.
 - [ ] Given 10.000 Dateien im Baum und keine Änderung seit dem letzten
