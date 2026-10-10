@@ -80,6 +80,10 @@ Binding test policy for the worker.
   in `packages/shared`, die Kopieren-Prüfen-Aufräumen und Papierkorb
   statt Löschen erzwingt.
 - DB-Schema nur über Kysely-Migrationen ändern.
+- Mandanten von Anfang an: Jede Fachtabelle (`foto`, `datei`, …) hat
+  `mandant_id`, jede Abfrage filtert danach. Bis zur Anmeldung (req-002)
+  gibt es genau einen Mandanten, den eine Migration anlegt; die
+  Ersteinrichtung in req-002 macht den Betreiber zu dessen Besitzer.
 
 ## Glossary
 
@@ -107,6 +111,8 @@ here.
 | Gesehen-Liste | Jede je importierte Datei mit Import-Prüfsumme, Schlüssel, früheren Namen; nicht neu aufbaubar |
 | Abgleich | Lauf, der Dateibaum und Datenbank vergleicht |
 | Neu aufbauen | Datenbank verwerfen und alles aus den Dateien neu einlesen |
+| Vermisst | Schlüssel aus der Gesehen-Liste, zu dem keine Datei mehr existiert |
+| Alarm | Original verändert: NEF weicht von Import-Prüfsumme ab, oder Bilddaten von JPEG/HEIC weichen von der Bild-Prüfsumme ab |
 | Fremdquelle | Karte, iPhone, fremder Datenträger: nur lesen, nie löschen |
 | Quelle | Eingestellter Ordner oder Datenträger, aus dem importiert wird; immer Fremdquelle |
 | Lauf | Ein Import-Vorgang über eine Quelle, mit Ergebnis und Protokoll |

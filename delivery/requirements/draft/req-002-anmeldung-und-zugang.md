@@ -39,10 +39,12 @@ nutzbar. Weitere Nutzer und Gastzugänge folgen in req-003 (derzeit
 - Jeder Datensatz gehört zu genau einem Mandanten; jede Abfrage filtert
   danach. Der Mandant kommt aus der Sitzung, nie aus der Anfrage.
 - Das gilt für alle Tabellen, auch die späteren Fachtabellen (`foto`,
-  `datei`, `anlass`, …): Sie bekommen eine Spalte `mandant_id`. Der
-  bestehende Foto-Baum gehört dem ersten Mandanten.
-- Die Ersteinrichtung legt den ersten Mandanten an, der Betreiber ist
-  Besitzer. Seine Adresse ist per Vorgabe `uwe@kremmel.org`
+  `datei`, `anlass`, …): Sie haben bereits eine Spalte `mandant_id`
+  (Konvention in `delivery/stack.md`). Der bestehende Foto-Baum gehört
+  dem ersten Mandanten.
+- Der erste Mandant existiert bereits (per Migration angelegt). Die
+  Ersteinrichtung legt keinen neuen an, sondern macht den Betreiber zu
+  dessen Besitzer. Seine Adresse ist per Vorgabe `uwe@kremmel.org`
   (überschreibbar per `BOOTSTRAP_EMAIL`), damit der Wiederherstellungsweg
   ab der ersten Minute steht.
 - Die Mandantenauswahl ist unsichtbar, solange ein Nutzer nur zu einem
@@ -138,7 +140,7 @@ nutzbar. Weitere Nutzer und Gastzugänge folgen in req-003 (derzeit
   diesem Gerät angemeldet.
 - [ ] Given eine frisch deployte Umgebung ohne Nutzer, when ich die App
   aufrufe, then sehe ich "Ersteinrichtung starten" und kann darüber ohne
-  Kommandozeile einen Mandanten, den Betreiber mit hinterlegter Adresse
+  Kommandozeile den Betreiber als Besitzer des ersten Mandanten, mit hinterlegter Adresse
   (`uwe@kremmel.org`, sofern nicht per `BOOTSTRAP_EMAIL` anders gesetzt)
   und dessen ersten Passkey anlegen.
 - [ ] Given es existiert bereits ein Nutzer, when ich die Anmeldeseite

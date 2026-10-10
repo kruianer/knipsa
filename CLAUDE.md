@@ -48,6 +48,8 @@ Geschäftsfunktions-Bereiche der App, zur Einordnung von Requirements.
 Ein Requirement gehört in genau eine Area. Neue Areas werden hier
 ergänzt.
 
+- **Archiv** — Index über den Foto-Baum, Abgleich, vermisste Dateien,
+  Alarme bei veränderten Originalen.
 - **Betrieb** — Repo-Gerüst, Container, Deploy, Tunnel, Health.
 - **Ingest** — Import von Fotos aus Quellen ins Archiv: Schlüssel, Gesehen-Liste,
   Wartebereich, Problemfälle.
