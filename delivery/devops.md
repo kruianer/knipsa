@@ -33,8 +33,13 @@ Getrennte Umgebungen auf demselben Host:
 | Foto-Baum (Ziel) | Test-Baum auf dem NAS `<TODO: Mountpunkt nach NAS-Einbindung>` | echter Baum auf dem NAS `<TODO: Mountpunkt nach NAS-Einbindung>` |
 | Runner | `beelink-knipsa` (`runs-on: [self-hosted, knipsa]`), `~/actions-runner-knipsa` | dto. |
 | Import-Quellen (req-005) | `Test` = `/home/kruianer/knipsa-quellen/test` (nur lesend einbinden) | noch keine |
+| &nbsp;&nbsp;↳ env-Variablen dazu | `QUELLEN_ROOT=/home/kruianer/knipsa-quellen`, `IMPORT_QUELLEN=Test=/quellen/test` | `QUELLEN_ROOT` auf einen leeren Ordner, `IMPORT_QUELLEN=` leer |
 | Gesehen-Liste | im Test-Baum | im echten Baum (wird gesichert) |
 
+- Die Quellen werden unter `/quellen` nur lesend eingebunden; der
+  Foto-Baum liegt unter `/fotos` und ist beschreibbar (der Import legt
+  dort ab). Das Verzeichnis aus `FOTOS_ROOT` muss auf dem Host für uid
+  1000 schreibbar sein — im Container läuft der Server als `node`.
 - dev arbeitet NIE auf dem echten Foto-Baum, auch nicht lesend. Der
   Test-Baum enthält eine Kopie einiger Anlässe und darf jederzeit
   verworfen und neu befüllt werden.

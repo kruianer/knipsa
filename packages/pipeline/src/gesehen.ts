@@ -122,15 +122,6 @@ export class GesehenListe {
     this.#plaetze.set(zerlegt.sekundenTeil, plaetze);
   }
 
-  /** `true`, wenn dieser Schluessel im Archiv schon vergeben ist. */
-  istSchluesselVergeben(schluessel: string): boolean {
-    const zerlegt = zerlegeSchluessel(schluessel);
-    return (
-      zerlegt !== undefined &&
-      (this.#plaetze.get(zerlegt.sekundenTeil)?.has(zerlegt.platz) ?? false)
-    );
-  }
-
   /**
    * Naechster freier Platz in dieser Sekunde. Vergebene Plaetze werden
    * nie wiederverwendet, auch wenn die Datei spaeter verschwindet.

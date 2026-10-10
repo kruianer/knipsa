@@ -36,11 +36,6 @@ export async function pruefsumme(pfad: string): Promise<string> {
   return hash.digest('hex');
 }
 
-/** Groesse einer Datei in Bytes. */
-export async function dateiGroesse(pfad: string): Promise<number> {
-  return (await stat(pfad)).size;
-}
-
 async function sichereAufPlatte(pfad: string): Promise<void> {
   const datei = await open(pfad, 'r+');
   try {

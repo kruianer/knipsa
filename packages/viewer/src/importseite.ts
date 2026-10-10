@@ -72,8 +72,8 @@ export function fortschrittText(laufend: LaufenderImport): string {
   return `${laufend.erledigt} von ${laufend.gesamt} Dateien`;
 }
 
-/** Zeitpunkt in der Schreibweise des Browsers, ohne Sekundenbruchteile. */
-export function zeitText(iso: string): string {
+/** Zeitpunkt in der Schreibweise des Browsers. */
+function zeitText(iso: string): string {
   const zeit = new Date(iso);
   return Number.isNaN(zeit.getTime()) ? iso : zeit.toLocaleString('de-DE');
 }

@@ -3,7 +3,7 @@ import { join } from 'node:path';
 
 import { describe, expect, it } from 'vitest';
 
-import { leseDatei, repoWurzel } from './pfade.js';
+import { leseDatei, leseJson, repoWurzel } from './pfade.js';
 
 const dockerfile = leseDatei('deploy/Dockerfile');
 
@@ -30,6 +30,19 @@ describe('deploy/Dockerfile', () => {
 
   it('laeuft nicht als root', () => {
     expect(dockerfile).toMatch(/^USER node$/m);
+  });
+
+  it('bringt Perl mit, weil exiftool es braucht', () => {
+    // `exiftool-vendored` liefert exiftool selbst, aber nicht den
+    // Perl-Interpreter; ohne ihn liest der Import keine Aufnahmezeit.
+    expect(dockerfile).toMatch(/apt-get install .*perl/);
+    expect(
+      leseJson<{ dependencies?: Record<string, string> }>('packages/pipeline/package.json'),
+    ).toHaveProperty(['dependencies', 'exiftool-vendored']);
+  });
+
+  it('raeumt die apt-Listen wieder weg', () => {
+    expect(dockerfile).toContain('rm -rf /var/lib/apt/lists/*');
   });
 
   it('kopiert weder node_modules noch delivery ins Image', () => {

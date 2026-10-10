@@ -33,7 +33,6 @@ export {
   wartendVerzeichnis,
 } from './fotobaum.js';
 export {
-  dateiGroesse,
   existiert,
   kopiereGeprueft,
   KopieFehler,
