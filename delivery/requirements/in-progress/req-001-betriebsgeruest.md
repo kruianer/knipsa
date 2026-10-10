@@ -88,7 +88,7 @@ nach dem Muster der anderen Apps des Betreibers)
 
 # Acceptance Criteria
 
-- [ ] Given ein frischer Checkout, when ich die Befehle aus
+- [x] Given ein frischer Checkout, when ich die Befehle aus
   `delivery/stack.md` ausführe, then laufen Install, Build, Lint,
   Typecheck und Test grün.
 - [ ] Given ein Push auf `dev`, when der Workflow durchläuft, then zeigt

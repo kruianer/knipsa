@@ -1,0 +1,12 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "rootDir": "src",
+    "outDir": "dist",
+    // Siehe packages/pipeline/tsconfig.build.json: im Build zaehlt das
+    // gebaute Paket aus node_modules, nicht die Quelle des Nachbarpakets.
+    "paths": {}
+  },
+  "include": ["src/**/*.ts"],
+  "exclude": ["src/**/*.test.ts"]
+}

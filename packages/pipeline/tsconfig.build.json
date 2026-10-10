@@ -1,0 +1,14 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "rootDir": "src",
+    "outDir": "dist",
+    // Der Build nimmt Workspace-Pakete als gebaute Pakete aus node_modules
+    // (dist + .d.ts), nicht als Quelldateien — sonst landen fremde Quellen
+    // im eigenen dist. Fuer typecheck und Tests gilt weiter das paths-Mapping
+    // aus tsconfig.base.json auf die Quellen.
+    "paths": {}
+  },
+  "include": ["src/**/*.ts"],
+  "exclude": ["src/**/*.test.ts"]
+}
