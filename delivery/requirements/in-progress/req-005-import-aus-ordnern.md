@@ -83,9 +83,9 @@ Quelle bleibt dabei unangetastet.
 - [x] Given `DSC_0412.NEF` ist schon importiert und in der Quelle liegt
   inzwischen eine geänderte `DSC_0412.xmp`, when ich importiere, then
   erscheint der Hinweis "Sidecar zu bekanntem Foto nicht übernommen".
-- [ ] Given ein Import läuft, when ich die Seite neu lade, then sehe ich
+- [x] Given ein Import läuft, when ich die Seite neu lade, then sehe ich
   weiterhin den Fortschritt "x von y Dateien".
-- [ ] Given ein Import läuft, when ich bei einer anderen Quelle
+- [x] Given ein Import läuft, when ich bei einer anderen Quelle
   "Importieren" drücke, then erscheint "Import läuft bereits" und kein
   zweiter Lauf startet.
 - [ ] Given der Server wird mitten in einem Lauf neu gestartet, when ich

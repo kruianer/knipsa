@@ -82,10 +82,17 @@ export async function fuehreImportBereich(
   abrufen: Abrufen,
   { taktMs = FORTSCHRITT_TAKT_MS, warte = schlafe }: SeiteOptionen = {},
 ): Promise<void> {
+  // Die Meldung des Servers (zum Beispiel "Import läuft bereits") bleibt
+  // stehen, bis der naechste Knopfdruck sie ersetzt — die Abfragen des
+  // Fortschritts dazwischen duerfen sie nicht wegwischen.
+  let meldung: string | undefined;
+
   const zeige = (zustand: ImportZustand): void => {
-    zeichneImport(bereich, zustand, (name) => {
+    zeichneImport(bereich, meldung === undefined ? zustand : { ...zustand, meldung }, (name) => {
       void (async () => {
-        zeige(await starteImport(abrufen, name));
+        const nachher = await starteImport(abrufen, name);
+        meldung = nachher.meldung;
+        zeige(nachher);
         await verfolge();
       })();
     });

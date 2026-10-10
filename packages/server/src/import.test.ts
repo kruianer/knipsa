@@ -123,6 +123,55 @@ describe('POST /api/import/start', () => {
     expect(antwort.json().fehler).toBe('Quelle nicht bekannt');
   });
 
+  it('antwortet 409 mit "Import läuft bereits", wenn schon einer laeuft', async () => {
+    let weiter: () => void = () => {};
+    const tor = new Promise<void>((fertig) => {
+      weiter = fertig;
+    });
+    const laeufe: string[] = [];
+    const dienst = new ImportDienst({
+      wurzel,
+      quellen: [
+        { name: 'Test', pfad: quellenPfad },
+        { name: 'Altbestand', pfad: quellenPfad },
+      ],
+      lauf: async ({ quelle, melde }) => {
+        laeufe.push(quelle.name);
+        melde({ erledigt: 3, gesamt: 42 });
+        await tor;
+        return ergebnis(quelle.name);
+      },
+      leser: () => ({
+        leseAufnahmezeit: () => Promise.resolve({ art: 'keineZeit' as const }),
+        schliesse: () => Promise.resolve(),
+      }),
+    });
+    const { app: server } = starte(dienst);
+
+    await server.inject({ method: 'POST', url: '/api/import/start', payload: { quelle: 'Test' } });
+    const zweiter = await server.inject({
+      method: 'POST',
+      url: '/api/import/start',
+      payload: { quelle: 'Altbestand' },
+    });
+
+    expect(zweiter.statusCode).toBe(409);
+    expect(zweiter.json().fehler).toBe('Import läuft bereits');
+    expect(laeufe).toEqual(['Test']);
+
+    // Nach dem Neuladen der Seite steht derselbe Fortschritt dort.
+    const zustand = await server.inject({ method: 'GET', url: '/api/import' });
+    expect(zustand.json().laufend).toEqual({
+      quelle: 'Test',
+      begonnen: expect.any(String),
+      erledigt: 3,
+      gesamt: 42,
+    });
+
+    weiter();
+    await dienst.arbeit();
+  });
+
   it('antwortet 409, wenn die Quelle nicht verfuegbar ist', async () => {
     const { app: server } = starte();
 
