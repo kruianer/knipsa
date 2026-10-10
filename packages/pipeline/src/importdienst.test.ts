@@ -400,10 +400,10 @@ describe('Abbrechen', () => {
     return async ({ quelle, abbruch, melde }) => {
       melde({ erledigt: 50, gesamt: 200 });
 
-      let grund = abbruch?.();
+      let grund = await abbruch();
       while (grund === undefined) {
         await new Promise((fertig) => setTimeout(fertig, 1));
-        grund = abbruch?.();
+        grund = await abbruch();
       }
 
       return { ...ergebnis(quelle.name), abgebrochen: grund, abschluss: 'abgebrochen', neu: 50 };
@@ -434,6 +434,49 @@ describe('Abbrechen', () => {
     await dienst.arbeit();
 
     expect((await dienst.zustand()).laeufe[0]?.quelle).toBe('Test');
+  });
+
+  it('beendet den Lauf von selbst, wenn der Datentraeger herausgezogen wird', async () => {
+    let steckt = true;
+    const dienst = new ImportDienst({
+      wurzel,
+      quellen: [],
+      datentraeger: () =>
+        Promise.resolve([
+          { name: 'NIKON D750', pfad: zweite, groesse: 0, anzeige: 'NIKON D750 (64 GB)' },
+        ]),
+      eingehaengt: () => Promise.resolve(steckt),
+      lauf: abbrechbarerLauf(),
+      leser: stubLeser,
+    });
+
+    await dienst.starte('NIKON D750');
+    // Niemand drueckt "Abbrechen" — die Karte wird einfach gezogen.
+    steckt = false;
+    await dienst.arbeit();
+
+    expect((await dienst.zustand()).laeufe[0]?.abgebrochen).toBe('entfernt');
+  });
+
+  it('sieht bei einer Ordner-Quelle nicht nach dem Einhaengepunkt', async () => {
+    const gefragt: string[] = [];
+    const dienst = new ImportDienst({
+      wurzel,
+      quellen: [{ name: 'Test', pfad: erste }],
+      eingehaengt: (pfad) => {
+        gefragt.push(pfad);
+        return Promise.resolve(false);
+      },
+      lauf: abbrechbarerLauf(),
+      leser: stubLeser,
+    });
+
+    await dienst.starte('Test');
+    dienst.brecheAb();
+    await dienst.arbeit();
+
+    expect(gefragt).toEqual([]);
+    expect((await dienst.zustand()).laeufe[0]?.abgebrochen).toBe('nutzer');
   });
 
   it('weist das Abbrechen ab, wenn kein Import laeuft', async () => {

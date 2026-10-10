@@ -56,7 +56,7 @@ Problemfälle, Übersprungenes und Ergebnis gelten unverändert wie dort.
   die bis dahin importierten Fotos liegen vollständig im Wartebereich.
 - [x] Given ein Import aus der Ordner-Quelle "Test" läuft, when ich
   "Abbrechen" drücke, then endet auch dieser Lauf als "abgebrochen".
-- [ ] Given ein Import von der Karte läuft, when ich die Karte
+- [x] Given ein Import von der Karte läuft, when ich die Karte
   herausziehe, then endet der Lauf mit "abgebrochen — Datenträger
   entfernt".
 - [ ] Given ein Lauf wurde abgebrochen, when ich dieselbe Quelle erneut

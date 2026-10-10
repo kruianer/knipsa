@@ -16,7 +16,7 @@ import { stat } from 'node:fs/promises';
 
 import type { QuellenEinstellung } from '@knipsa/shared';
 
-import { findeDatentraeger, type Datentraeger } from './datentraeger.js';
+import { findeDatentraeger, istEingehaengt, type Datentraeger } from './datentraeger.js';
 import {
   fuehreLaufAus,
   type AbbruchGrund,
@@ -98,7 +98,7 @@ export type LaufFunktion = (auftrag: {
   readonly quelle: Quelle;
   readonly ordner: string;
   readonly leser: MetadatenLeser;
-  readonly abbruch: () => AbbruchGrund | undefined;
+  readonly abbruch: () => Promise<AbbruchGrund | undefined>;
   readonly melde: (fortschritt: Fortschritt) => void;
 }) => Promise<LaufErgebnis>;
 
@@ -126,6 +126,8 @@ export interface ImportDienstOptionen {
   readonly datentraegerPfad?: string;
   /** Ersetzt das Nachsehen der Datentraeger; nur fuer Tests. */
   readonly datentraeger?: () => Promise<readonly Datentraeger[]>;
+  /** Ersetzt die Pruefung des Einhaengepunkts; nur fuer Tests. */
+  readonly eingehaengt?: (pfad: string) => Promise<boolean>;
   /** Ersetzt den echten Lauf; nur fuer Tests. */
   readonly lauf?: LaufFunktion;
   /** Ersetzt den `exiftool`-Leser; nur fuer Tests. */
@@ -150,6 +152,7 @@ export class ImportDienst {
   readonly #wurzel: string;
   readonly #quellen: readonly QuellenEinstellung[];
   readonly #datentraeger: () => Promise<readonly Datentraeger[]>;
+  readonly #eingehaengt: (pfad: string) => Promise<boolean>;
   readonly #lauf: LaufFunktion;
   readonly #leser: () => MetadatenLeser;
   readonly #meldeFehler: (fehler: Error) => void;
@@ -163,6 +166,7 @@ export class ImportDienst {
     quellen,
     datentraegerPfad = '',
     datentraeger,
+    eingehaengt,
     lauf,
     leser,
     meldeFehler,
@@ -171,6 +175,7 @@ export class ImportDienst {
     this.#quellen = quellen;
     this.#datentraeger =
       datentraeger ?? ((): Promise<Datentraeger[]> => findeDatentraeger(datentraegerPfad));
+    this.#eingehaengt = eingehaengt ?? istEingehaengt;
     this.#lauf = lauf ?? fuehreLaufAus;
     this.#leser = leser ?? exiftoolLeser;
     this.#meldeFehler = meldeFehler ?? ((): void => {});
@@ -286,6 +291,24 @@ export class ImportDienst {
     this.#laufend = { ...this.#laufend, abbruch: grund };
   }
 
+  /**
+   * Antwort auf die Frage des Laufs, ob er weitermachen soll. Bei einem
+   * Datentraeger wird dabei nachgesehen, ob er noch steckt: wird er
+   * waehrend des Laufs herausgezogen, endet der Lauf als "abgebrochen —
+   * Datenträger entfernt".
+   */
+  async #abbruchGrund(quelle: Quelle): Promise<AbbruchGrund | undefined> {
+    if (this.#abbruch !== undefined || quelle.art !== 'datentraeger') {
+      return this.#abbruch;
+    }
+
+    if (!(await this.#eingehaengt(quelle.pfad)) && this.#laufend !== undefined) {
+      this.brecheAb('entfernt');
+    }
+
+    return this.#abbruch;
+  }
+
   async #arbeite(quelle: Quelle, ordner: string): Promise<void> {
     const leser = this.#leser();
     try {
@@ -294,7 +317,7 @@ export class ImportDienst {
         quelle,
         ordner,
         leser,
-        abbruch: () => this.#abbruch,
+        abbruch: () => this.#abbruchGrund(quelle),
         melde: (fortschritt) => {
           if (this.#laufend !== undefined) {
             this.#laufend = { ...this.#laufend, ...fortschritt };

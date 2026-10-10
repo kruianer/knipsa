@@ -166,9 +166,10 @@ export interface LaufOptionen {
   readonly leser: MetadatenLeser;
   /**
    * Wird vor jeder Datei gefragt. Gibt sie einen Grund, endet der Lauf
-   * nach der gerade bearbeiteten Datei.
+   * nach der gerade bearbeiteten Datei. Darf nachsehen gehen (zum
+   * Beispiel, ob der Datentraeger noch steckt) und deshalb warten.
    */
-  readonly abbruch?: () => AbbruchGrund | undefined;
+  readonly abbruch?: () => AbbruchGrund | undefined | Promise<AbbruchGrund | undefined>;
   /** Wird nach jeder Datei gerufen. */
   readonly melde?: (fortschritt: Fortschritt) => void;
   /** Uhr; in Tests festgehalten. */
@@ -356,25 +357,35 @@ export async function fuehreLaufAus({
   // Ein Abbruch wirkt immer erst nach der gerade bearbeiteten Datei:
   // dann ist entweder alles an ihr fertig oder nichts von ihr begonnen.
   let abgebrochen: AbbruchGrund | undefined;
-  const sollWeiter = (): boolean => {
-    abgebrochen = abgebrochen ?? abbruch?.();
+  const sollWeiter = async (): Promise<boolean> => {
+    abgebrochen = abgebrochen ?? (await abbruch?.());
     return abgebrochen === undefined;
   };
 
-  // Erster Durchgang: einordnen, Pruefsummen bilden, Aufnahmezeit lesen.
-  const einheiten: Einheit[] = [];
-  for (const datei of dateien) {
-    if (!sollWeiter()) {
-      break;
+  /**
+   * Faellt eine Datei mitten in der Arbeit aus, ist das kein Fehler des
+   * Archivs, wenn die Quelle inzwischen weg ist — der Lauf gilt dann als
+   * abgebrochen. Alles andere bleibt ein Fehler.
+   */
+  const alsAbbruchDeuten = async (fehler: unknown): Promise<boolean> => {
+    abgebrochen = abgebrochen ?? (await abbruch?.());
+    if (abgebrochen === undefined) {
+      throw fehler;
     }
+    return true;
+  };
 
+  const einheiten: Einheit[] = [];
+
+  /** Ordnet eine Datei ein: Pruefsumme bilden, Aufnahmezeit lesen. */
+  const ordneEin = async (datei: Quelldatei): Promise<void> => {
     if (datei.art === 'video') {
       uebersprungen(datei, GRUND_VIDEO);
-      continue;
+      return;
     }
     if (datei.art === 'anderes') {
       uebersprungen(datei, GRUND_ANDERER_DATEITYP);
-      continue;
+      return;
     }
 
     if (datei.art === 'sidecar') {
@@ -383,13 +394,13 @@ export async function fuehreLaufAus({
       if (!hatNefDaneben(datei, dateien)) {
         await alsProblem(datei, await pruefsumme(datei.pfad), GRUND_SIDECAR_OHNE_FOTO);
       }
-      continue;
+      return;
     }
 
     // Ein JPEG neben einer gleichnamigen NEF ist nur eine Ansicht davon.
     if (datei.art === 'jpeg' && hatNefDaneben(datei, dateien)) {
       uebersprungen(datei, GRUND_JPEG_NEBEN_NEF);
-      continue;
+      return;
     }
 
     const teile: GewogeneDatei[] = [];
@@ -418,7 +429,7 @@ export async function fuehreLaufAus({
         abgeschlossen();
       }
 
-      continue;
+      return;
     }
 
     const eigeneSumme = teile[0]?.summe ?? '';
@@ -435,7 +446,7 @@ export async function fuehreLaufAus({
       for (const teil of teile.slice(1)) {
         uebersprungen(teil.datei, GRUND_SIDECAR_PROBLEM);
       }
-      continue;
+      return;
     }
 
     einheiten.push({
@@ -444,15 +455,10 @@ export async function fuehreLaufAus({
       sekundenTeil: sekundenTeil(zeit.zeit),
       bruchteil: zeit.bruchteil,
     });
-  }
+  };
 
-  // Zweiter Durchgang: Schluessel in Aufnahmereihenfolge vergeben und
-  // die Einheit uebernehmen.
-  for (const einheit of [...einheiten].sort(nachAufnahmereihenfolge)) {
-    if (!sollWeiter()) {
-      break;
-    }
-
+  /** Vergibt den Schluessel einer Einheit und uebernimmt sie in den Baum. */
+  const uebernimm = async (einheit: Einheit): Promise<void> => {
     const platz = gesehen.naechsterPlatz(einheit.sekundenTeil);
     const schluessel = baueSchluessel(einheit.sekundenTeil, platz);
     gesehen.belegeSchluessel(schluessel);
@@ -469,6 +475,42 @@ export async function fuehreLaufAus({
     }
 
     abgeschlossen(einheit.teile.length);
+  };
+
+  // Erster Durchgang: einordnen, Pruefsummen bilden, Aufnahmezeit lesen.
+  for (const datei of dateien) {
+    if (!(await sollWeiter())) {
+      break;
+    }
+
+    try {
+      await ordneEin(datei);
+    } catch (fehler) {
+      await alsAbbruchDeuten(fehler);
+      break;
+    }
+  }
+
+  // Zweiter Durchgang: Schluessel in Aufnahmereihenfolge vergeben und
+  // die Einheit uebernehmen.
+  for (const einheit of [...einheiten].sort(nachAufnahmereihenfolge)) {
+    if (!(await sollWeiter())) {
+      break;
+    }
+
+    try {
+      await uebernimm(einheit);
+    } catch (fehler) {
+      await alsAbbruchDeuten(fehler);
+      break;
+    }
+  }
+
+  if (abgebrochen !== undefined) {
+    // Ein Abbruch mitten in einer Datei kann eine halbe Kopie
+    // hinterlassen haben. Sie wird hier geklaert, statt bis zum naechsten
+    // Lauf liegen zu bleiben.
+    await raeumeTeileAuf(wurzel, gesehen);
   }
 
   const beendet = jetzt();

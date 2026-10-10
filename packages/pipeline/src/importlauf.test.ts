@@ -1,3 +1,4 @@
+import { rmSync } from 'node:fs';
 import { mkdtemp, readdir, readFile, rm, stat } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -607,6 +608,71 @@ describe('Abbrechen mitten im Lauf', () => {
     expect(ergebnis.abgebrochen).toBe('nutzer');
     expect(ergebnis.abschluss).toBe('abgebrochen');
     expect(ergebnis.neu).toBe(0);
+  });
+
+  it('endet nach dem Herausziehen mit "abgebrochen — Datenträger entfernt"', async () => {
+    const eigenerLeser = await vieleFotos(20);
+    let erledigt = 0;
+
+    const ergebnis = await fuehreLaufAus({
+      wurzel,
+      quelle: { ...quelle, art: 'datentraeger' },
+      leser: eigenerLeser,
+      abbruch: () => (erledigt > 3 ? 'entfernt' : undefined),
+      melde: (fortschritt) => {
+        erledigt = fortschritt.erledigt;
+      },
+    });
+
+    expect(ergebnis.abgebrochen).toBe('entfernt');
+    expect(ergebnis.abschluss).toBe('abgebrochen — Datenträger entfernt');
+    expect(ergebnis.neu).toBeGreaterThan(0);
+    expect(await readdir(join(wurzel, '.import-teil'))).toEqual([]);
+  });
+
+  it('laesst keine halbe Kopie zurueck, wenn die Karte mitten im Lauf verschwindet', async () => {
+    const eigenerLeser = await vieleFotos(20);
+    let gezogen = false;
+
+    const ergebnis = await fuehreLaufAus({
+      wurzel,
+      quelle: { ...quelle, art: 'datentraeger' },
+      leser: eigenerLeser,
+      abbruch: () => (gezogen ? 'entfernt' : undefined),
+      melde: (fortschritt) => {
+        if (fortschritt.erledigt === 3 && !gezogen) {
+          // Die Karte wird gezogen: mitten im Lauf sind die restlichen
+          // Dateien weg.
+          gezogen = true;
+          rmSync(join(quelle.pfad, 'DCIM'), { recursive: true, force: true });
+        }
+      },
+    });
+
+    expect(ergebnis.abgebrochen).toBe('entfernt');
+    expect(ergebnis.abschluss).toBe('abgebrochen — Datenträger entfernt');
+    expect(ergebnis.neu).toBe(3);
+    expect(await readdir(join(wurzel, '.import-teil'))).toEqual([]);
+
+    // Im Wartebereich liegen genau die drei fertigen Fotos.
+    expect(await readdir(join(wurzel, 'original', '_wartend', '2019-06'))).toHaveLength(3);
+  });
+
+  it('bleibt ein Fehler, wenn die Datei ohne Abbruch verschwindet', async () => {
+    const eigenerLeser = await vieleFotos(20);
+
+    await expect(
+      fuehreLaufAus({
+        wurzel,
+        quelle,
+        leser: eigenerLeser,
+        melde: (fortschritt) => {
+          if (fortschritt.erledigt === 3) {
+            rmSync(join(quelle.pfad, 'DCIM'), { recursive: true, force: true });
+          }
+        },
+      }),
+    ).rejects.toThrow();
   });
 
   it('vermerkt den Abbruch im Protokoll', async () => {

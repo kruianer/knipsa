@@ -140,10 +140,10 @@ describe('POST /api/import/abbrechen', () => {
       quellen: [{ name: 'Test', pfad: quellenPfad }],
       lauf: async ({ quelle, abbruch, melde }) => {
         melde({ erledigt: 50, gesamt: 200 });
-        let grund = abbruch?.();
+        let grund = await abbruch();
         while (grund === undefined) {
           await new Promise((fertig) => setTimeout(fertig, 1));
-          grund = abbruch?.();
+          grund = await abbruch();
         }
         return { ...ergebnis(quelle.name), abgebrochen: grund, abschluss: 'abgebrochen' };
       },
