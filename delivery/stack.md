@@ -94,7 +94,7 @@ here.
 | Schlüssel | `JJJJMMTT-HHMMSS` + Buchstabe; archivweit eindeutig, nie geändert, nie wiederverwendet |
 | Anlass | Zeitraum mit Ort (Reise, Ausflug, Fest); Ordner `JJJJ-MM-TT_name` mit `anlass.json` |
 | Alltag | Fotos ohne Anlass, ein Ordner pro Monat `JJJJ-MM_alltag` |
-| Wartend | Importiert und gesichert, Anlass noch nicht bestätigt (`original/_wartend`) |
+| Wartend / Wartebereich | Importiert und gesichert, Anlass noch nicht bestätigt (`original/_wartend/JJJJ-MM/`) |
 | Variante | Weitere Datei desselben Fotos aus Lightroom, Zusatz `-a`, `-b`, … |
 | Führende Datei | Datei eines Fotos, die Bewertung/Stichwörter liefert; neueste Variante, außer manuell gewählt |
 | Sidecar | `.xmp`/`.acr` neben einer NEF; Feld der Datei, keine eigene Zeile |
@@ -108,6 +108,8 @@ here.
 | Abgleich | Lauf, der Dateibaum und Datenbank vergleicht |
 | Neu aufbauen | Datenbank verwerfen und alles aus den Dateien neu einlesen |
 | Fremdquelle | Karte, iPhone, fremder Datenträger: nur lesen, nie löschen |
+| Quelle | Eingestellter Ordner oder Datenträger, aus dem importiert wird; immer Fremdquelle |
+| Lauf | Ein Import-Vorgang über eine Quelle, mit Ergebnis und Protokoll |
 | Durchgang | `eingang/*`-Ordner: Dateien werden nach Prüfung entfernt |
 | Problemordner | `eingang/problem`: nicht verarbeitbare Dateien mit Begründung |
 | Ausleihe | Ordner ist zur Bearbeitung an ein Gerät (PC/Laptop) kopiert |

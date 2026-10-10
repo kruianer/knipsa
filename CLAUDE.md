@@ -49,5 +49,7 @@ Ein Requirement gehört in genau eine Area. Neue Areas werden hier
 ergänzt.
 
 - **Betrieb** — Repo-Gerüst, Container, Deploy, Tunnel, Health.
+- **Ingest** — Import von Fotos aus Quellen ins Archiv: Schlüssel, Gesehen-Liste,
+  Wartebereich, Problemfälle.
 - **Zugang** — Anmeldung, Geräte, Sitzungen, Wiederherstellung,
   Mandanten, Nutzer und Gastzugänge.
