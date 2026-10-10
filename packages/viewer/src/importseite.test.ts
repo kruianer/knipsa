@@ -91,6 +91,28 @@ describe('Fortschritt', () => {
 });
 
 describe('Ergebnis', () => {
+  it('zeigt jeden Lauf, den der Server meldet', () => {
+    const laeufe = Array.from({ length: 10 }, (_eintrag, stelle) => ({
+      quelle: `Test ${stelle + 1}`,
+      begonnen: '2026-10-10T08:00:00.000Z',
+      beendet: '2026-10-10T08:00:05.000Z',
+      gesamt: 0,
+      neu: 0,
+      bekannt: 0,
+      uebersprungen: 0,
+      problem: 0,
+      dateien: [],
+      protokoll: `protokoll/import/lauf-${stelle + 1}.log`,
+    }));
+
+    zeichneImport(bereich, { ...leer, laeufe }, () => {});
+
+    const bloecke = bereich.querySelectorAll<HTMLElement>('.lauf');
+    expect(bloecke).toHaveLength(10);
+    expect(bloecke[0]?.dataset.quelle).toBe('Test 1');
+    expect(bloecke[9]?.dataset.quelle).toBe('Test 10');
+  });
+
   it('zeigt je Lauf Quelle, Zeitpunkt und Zahlen, aufklappbar je Datei', () => {
     zeichneImport(
       bereich,

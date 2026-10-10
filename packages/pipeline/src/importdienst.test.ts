@@ -164,6 +164,41 @@ describe('nur ein Import gleichzeitig', () => {
   });
 });
 
+describe('Ergebnis der letzten Laeufe', () => {
+  it('zeigt nach 11 Laeufen genau die 10 neuesten', async () => {
+    let nummer = 0;
+    const dienst = new ImportDienst({
+      wurzel,
+      quellen: [{ name: 'Test', pfad: erste }],
+      lauf: () => {
+        nummer += 1;
+        return Promise.resolve({ ...ergebnis('Test'), protokoll: `lauf-${nummer}.log` });
+      },
+      leser: stubLeser,
+    });
+
+    for (let versuch = 1; versuch <= 11; versuch += 1) {
+      await dienst.starte('Test');
+      await dienst.arbeit();
+    }
+
+    const zustand = await dienst.zustand();
+    expect(zustand.laeufe).toHaveLength(10);
+    expect(zustand.laeufe.map((eintrag) => eintrag.protokoll)).toEqual([
+      'lauf-11.log',
+      'lauf-10.log',
+      'lauf-9.log',
+      'lauf-8.log',
+      'lauf-7.log',
+      'lauf-6.log',
+      'lauf-5.log',
+      'lauf-4.log',
+      'lauf-3.log',
+      'lauf-2.log',
+    ]);
+  });
+});
+
 describe('Quellen', () => {
   it('meldet je Quelle, ob sie verfuegbar ist', async () => {
     const dienst = new ImportDienst({

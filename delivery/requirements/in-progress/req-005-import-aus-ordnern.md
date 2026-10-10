@@ -94,7 +94,7 @@ Quelle bleibt dabei unangetastet.
   Wartebereich.
 - [x] Given ein Import ist fertig, when ich die Quelle ansehe, then ist
   dort KEINE Datei gelöscht, umbenannt oder verändert.
-- [ ] Given es gab 11 Läufe, when ich die Seite öffne, then sehe ich
+- [x] Given es gab 11 Läufe, when ich die Seite öffne, then sehe ich
   genau die 10 neuesten.
 
 # Constraints
