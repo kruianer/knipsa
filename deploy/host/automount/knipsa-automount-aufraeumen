@@ -1,0 +1,6 @@
+#!/bin/sh
+# Entfernt leere Einhaengeordner unter /media/knipsa, nachdem systemd ausgehaengt hat.
+for D in /media/knipsa/*/; do
+  [ -d "$D" ] || continue
+  mountpoint -q "$D" || rmdir "$D" 2>/dev/null || true
+done

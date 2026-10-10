@@ -1,0 +1,3 @@
+# Knipsa: Karten und USB-Datentraeger nur lesend unter /media/knipsa einhaengen.
+ACTION=="add", SUBSYSTEM=="block", KERNEL=="sd*|mmcblk*", ENV{ID_FS_USAGE}=="filesystem", RUN+="/usr/local/sbin/knipsa-automount %k"
+ACTION=="remove", SUBSYSTEM=="block", KERNEL=="sd*|mmcblk*", RUN+="/usr/bin/systemd-run --no-block --on-active=5 /usr/local/sbin/knipsa-automount-aufraeumen"

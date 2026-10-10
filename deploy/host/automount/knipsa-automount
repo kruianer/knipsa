@@ -1,0 +1,19 @@
+#!/bin/sh
+# Haengt einen eingesteckten Datentraeger NUR LESEND unter /media/knipsa ein.
+# Aufruf durch udev (99-knipsa-automount.rules) mit dem Kernel-Namen, z.B. sdb1.
+# Ausgehaengt wird automatisch durch systemd, sobald das Geraet verschwindet.
+set -eu
+DEV="/dev/$1"
+LABEL=""; TYPE=""; UUID=""
+eval "$(blkid -o export "$DEV" | grep -E '^(LABEL|TYPE|UUID)=')"
+case "$TYPE" in
+  vfat|exfat|ntfs|ntfs3|ext2|ext3|ext4|hfsplus) ;;
+  *) logger -t knipsa-automount "$DEV: Dateisystem '$TYPE' nicht unterstuetzt"; exit 0 ;;
+esac
+NAME=$(printf '%s' "${LABEL:-datentraeger-${UUID:-$1}}" | tr -c 'A-Za-z0-9 ._-' '_')
+ZIEL="/media/knipsa/$NAME"
+N=2
+while mountpoint -q "$ZIEL"; do ZIEL="/media/knipsa/$NAME-$N"; N=$((N+1)); done
+mkdir -p "$ZIEL"
+systemd-mount --no-block --collect -o ro,noexec,nosuid,nodev "$DEV" "$ZIEL"
+logger -t knipsa-automount "$DEV ($TYPE) nur lesend nach $ZIEL"
