@@ -4,13 +4,21 @@ import { join } from 'node:path';
 
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
-import { deuteTags, exiftoolLeser, zerlegeZeitangabe, type MetadatenLeser } from './metadaten.js';
+import {
+  deuteAngaben,
+  deuteTags,
+  exiftoolLeser,
+  zerlegeZeitangabe,
+  type AngabenLeser,
+  type MetadatenLeser,
+} from './metadaten.js';
 import {
   heicBytes,
   jpegBytes,
   kaputteJpegBytes,
   nefBytes,
   schreibeDatei,
+  xmpText,
 } from './test/testbilder.js';
 
 describe('zerlegeZeitangabe', () => {
@@ -72,9 +80,76 @@ describe('deuteTags', () => {
   });
 });
 
+describe('deuteAngaben', () => {
+  it('liest Bewertung, Farbmarkierung, Stichwoerter, Titel und Beschreibung', () => {
+    expect(
+      deuteAngaben({
+        Rating: 4,
+        Label: 'Rot',
+        Subject: ['Toskana', 'Urlaub'],
+        Title: 'Zypressen',
+        Description: 'Allee bei Pienza',
+      }),
+    ).toEqual({
+      bewertung: 4,
+      farbmarkierung: 'Rot',
+      stichwoerter: ['Toskana', 'Urlaub'],
+      titel: 'Zypressen',
+      beschreibung: 'Allee bei Pienza',
+      gpsBreite: undefined,
+      gpsLaenge: undefined,
+    });
+  });
+
+  it('nimmt eine Bewertung von 0 als "nicht bewertet"', () => {
+    expect(deuteAngaben({ Rating: 0 }).bewertung).toBeUndefined();
+    expect(deuteAngaben({}).bewertung).toBeUndefined();
+  });
+
+  it('fasst Stichwoerter aus Subject und Keywords ohne Doppelte zusammen', () => {
+    expect(
+      deuteAngaben({ Subject: 'Toskana', Keywords: ['Toskana', 'Urlaub'] }).stichwoerter,
+    ).toEqual(['Toskana', 'Urlaub']);
+  });
+
+  it('nimmt fuer Titel und Beschreibung das erste gefuellte Feld', () => {
+    expect(deuteAngaben({ ObjectName: 'aus IPTC' }).titel).toBe('aus IPTC');
+    expect(deuteAngaben({ Title: 'aus XMP', ObjectName: 'aus IPTC' }).titel).toBe('aus XMP');
+    expect(deuteAngaben({ ImageDescription: 'aus EXIF' }).beschreibung).toBe('aus EXIF');
+    expect(deuteAngaben({ 'Caption-Abstract': 'aus IPTC' }).beschreibung).toBe('aus IPTC');
+  });
+
+  it('macht Sueden und Westen zu negativen Koordinaten', () => {
+    expect(
+      deuteAngaben({
+        GPSLatitude: 33.86,
+        GPSLatitudeRef: 'S',
+        GPSLongitude: 151.21,
+        GPSLongitudeRef: 'E',
+      }),
+    ).toMatchObject({ gpsBreite: -33.86, gpsLaenge: 151.21 });
+  });
+
+  it('laesst ein schon vorzeichenbehaftetes Feld, wie es ist', () => {
+    expect(deuteAngaben({ GPSLatitude: -33.86, GPSLatitudeRef: 'S' }).gpsBreite).toBe(-33.86);
+  });
+
+  it('uebergeht Felder, die keine Zahl oder leer sind', () => {
+    expect(deuteAngaben({ Rating: 'keine', GPSLatitude: '', Label: '  ' })).toEqual({
+      bewertung: undefined,
+      farbmarkierung: undefined,
+      stichwoerter: [],
+      titel: undefined,
+      beschreibung: undefined,
+      gpsBreite: undefined,
+      gpsLaenge: undefined,
+    });
+  });
+});
+
 /** Diese Tests lesen mit echtem `exiftool` aus echten Dateien. */
 describe('exiftoolLeser', () => {
-  let leser: MetadatenLeser;
+  let leser: MetadatenLeser & AngabenLeser;
   let ordner: string;
 
   beforeAll(async () => {
@@ -122,5 +197,34 @@ describe('exiftoolLeser', () => {
     await schreibeDatei(pfad, kaputteJpegBytes());
 
     expect((await leser.leseAufnahmezeit(pfad)).art).toBe('beschaedigt');
+  });
+
+  it('liest Bewertung, Farbmarkierung und Stichwoerter aus einem XMP-Sidecar', async () => {
+    const pfad = join(ordner, '20190614-101500a.xmp');
+    await schreibeDatei(pfad, xmpText(4, { stichwoerter: ['Toskana'], farbe: 'Rot' }));
+
+    const angaben = await leser.leseAngaben(pfad);
+
+    expect(angaben.bewertung).toBe(4);
+    expect(angaben.farbmarkierung).toBe('Rot');
+    expect(angaben.stichwoerter).toEqual(['Toskana']);
+  });
+
+  it('liest die geaenderte Bewertung aus derselben XMP wieder', async () => {
+    const pfad = join(ordner, '20190614-101501a.xmp');
+    await schreibeDatei(pfad, xmpText(4));
+    await schreibeDatei(pfad, xmpText(5));
+
+    expect((await leser.leseAngaben(pfad)).bewertung).toBe(5);
+  });
+
+  it('liest aus einem Foto ohne Angaben nichts hinzu', async () => {
+    const pfad = join(ordner, 'ohne-angaben.jpg');
+    await schreibeDatei(pfad, jpegBytes({ datum: '2019:06:14 10:15:00' }));
+
+    const angaben = await leser.leseAngaben(pfad);
+
+    expect(angaben.bewertung).toBeUndefined();
+    expect(angaben.stichwoerter).toEqual([]);
   });
 });

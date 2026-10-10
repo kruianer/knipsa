@@ -8,6 +8,7 @@ export {
   type UmgebungsVariablen,
 } from './konfiguration.js';
 export {
+  aufnahmezeitText,
   baueSchluessel,
   buchstabe,
   istSekundenTeil,
@@ -20,6 +21,7 @@ export {
   type ZerlegterSchluessel,
 } from './schluessel.js';
 export { dateiArt, endung, grundname, istFoto, type DateiArt } from './dateiarten.js';
+export { STANDARD_MANDANT } from './mandant.js';
 export {
   gesehenDatei,
   laeufeDatei,

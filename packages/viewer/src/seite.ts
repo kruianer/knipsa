@@ -1,3 +1,16 @@
+import {
+  holeArchivZustand,
+  holeAuskunft,
+  holeListe,
+  starteAbgleich,
+  starteNeuaufbau,
+} from './archivdaten.js';
+import {
+  ARCHIV_UNBEKANNT,
+  zeichneArchiv,
+  type ArchivZustand,
+  type Auskunft,
+} from './archivseite.js';
 import { brecheImportAb, holeImportZustand, holeOrdner, starteImport } from './importdaten.js';
 import {
   IMPORT_UNBEKANNT,
@@ -85,11 +98,15 @@ export async function starteSeite(
   zeichneSeite(wurzel, { umgebung: UMGEBUNG_UNBEKANNT, ready: { erreichbar: false } });
   zeichneSeite(wurzel, await holeZustand(abrufen));
 
-  const bereich = dokument.createElement('section');
-  bereich.id = 'import';
-  wurzel.append(bereich);
+  const importBereich = dokument.createElement('section');
+  importBereich.id = 'import';
 
-  await fuehreImportBereich(bereich, abrufen, optionen);
+  const archivBereich = dokument.createElement('section');
+  archivBereich.id = 'archiv';
+
+  wurzel.append(importBereich, archivBereich);
+
+  await fuehreBereiche(importBereich, archivBereich, abrufen, optionen);
 }
 
 /**
@@ -97,8 +114,35 @@ export async function starteSeite(
  * ausgesteckte Datentraeger von selbst erscheinen und verschwinden,
  * waehrend eines Laufs im engeren Takt des Fortschritts.
  */
-export async function fuehreImportBereich(
+export function fuehreImportBereich(
   bereich: Element,
+  abrufen: Abrufen,
+  optionen: SeiteOptionen = {},
+): Promise<void> {
+  return fuehreBereiche(bereich, undefined, abrufen, optionen);
+}
+
+/**
+ * Haelt den Bereich "Archiv" aktuell: die Zahlen, der letzte Abgleich
+ * und die aufgeklappten Listen kommen bei jeder Abfrage frisch vom
+ * Server — ein laufender Abgleich ist damit auf der Seite zu sehen.
+ */
+export function fuehreArchivBereich(
+  bereich: Element,
+  abrufen: Abrufen,
+  optionen: SeiteOptionen = {},
+): Promise<void> {
+  return fuehreBereiche(undefined, bereich, abrufen, optionen);
+}
+
+/**
+ * Haelt die Bereiche der Startseite aktuell. Beide gehen in denselben
+ * Takt: ein Durchgang fragt ab, was auf der Seite steht, und zeichnet
+ * sie neu.
+ */
+async function fuehreBereiche(
+  importBereich: Element | undefined,
+  archivBereich: Element | undefined,
   abrufen: Abrufen,
   {
     taktMs = FORTSCHRITT_TAKT_MS,
@@ -116,10 +160,14 @@ export async function fuehreImportBereich(
   // des Servers: sie bleibt ueber die Abfragen hinweg stehen.
   let ordnerwahl: OrdnerWahl | undefined;
 
-  const zeige = (zustand: ImportZustand): void => {
+  const zeigeImport = (zustand: ImportZustand): void => {
     letzter = zustand;
+    if (importBereich === undefined) {
+      return;
+    }
+
     zeichneImport(
-      bereich,
+      importBereich,
       { ...zustand, meldung, ordnerwahl },
       {
         starte: (name, ordner) => {
@@ -128,35 +176,124 @@ export async function fuehreImportBereich(
             meldung = nachher.meldung;
             // Nach dem Start ist die Auswahl erledigt.
             ordnerwahl = undefined;
-            zeige(nachher);
+            zeigeImport(nachher);
           })();
         },
         zeigeOrdner: (name, ordner) => {
           void (async () => {
             ordnerwahl = await holeOrdner(abrufen, name, ordner);
-            zeige(letzter);
+            zeigeImport(letzter);
           })();
         },
         schliesseOrdner: () => {
           ordnerwahl = undefined;
-          zeige(letzter);
+          zeigeImport(letzter);
         },
         brecheAb: () => {
           void (async () => {
             const nachher = await brecheImportAb(abrufen);
             meldung = nachher.meldung;
-            zeige(nachher);
+            zeigeImport(nachher);
           })();
         },
       },
     );
   };
 
-  zeige(IMPORT_UNBEKANNT);
-  zeige(await holeImportZustand(abrufen));
+  // Meldung, Nachfrage, offene Listen und die Auskunft gehoeren zur
+  // Bedienung: sie bleiben ueber die Abfragen hinweg stehen.
+  let archivMeldung: string | undefined;
+  let nachfrage = false;
+  let auskunft: Auskunft | undefined;
+  const listen = new Map<string, readonly string[]>();
+  let letzterArchiv: ArchivZustand = ARCHIV_UNBEKANNT;
+
+  const zeigeArchiv = (zustand: ArchivZustand): void => {
+    letzterArchiv = zustand;
+    if (archivBereich === undefined) {
+      return;
+    }
+
+    zeichneArchiv(
+      archivBereich,
+      {
+        ...zustand,
+        meldung: archivMeldung,
+        nachfrage,
+        auskunft,
+        listen: Object.fromEntries(listen),
+      },
+      {
+        gleicheAb: () => {
+          void (async () => {
+            const nachher = await starteAbgleich(abrufen);
+            archivMeldung = nachher.meldung;
+            nachfrage = false;
+            zeigeArchiv(nachher);
+          })();
+        },
+        frageNeuAufbau: () => {
+          nachfrage = true;
+          zeigeArchiv(letzterArchiv);
+        },
+        baueNeuAuf: () => {
+          void (async () => {
+            const nachher = await starteNeuaufbau(abrufen);
+            archivMeldung = nachher.meldung;
+            nachfrage = false;
+            zeigeArchiv(nachher);
+          })();
+        },
+        verwirfNachfrage: () => {
+          nachfrage = false;
+          zeigeArchiv(letzterArchiv);
+        },
+        klappe: (art) => {
+          void (async () => {
+            if (listen.has(art)) {
+              listen.delete(art);
+              zeigeArchiv(letzterArchiv);
+              return;
+            }
+
+            listen.set(art, await holeListe(abrufen, art));
+            zeigeArchiv(letzterArchiv);
+          })();
+        },
+        schlageNach: (schluessel) => {
+          void (async () => {
+            auskunft = await holeAuskunft(abrufen, schluessel);
+            zeigeArchiv(letzterArchiv);
+          })();
+        },
+      },
+    );
+  };
+
+  zeigeImport(IMPORT_UNBEKANNT);
+  zeigeArchiv(ARCHIV_UNBEKANNT);
+
+  if (importBereich !== undefined) {
+    zeigeImport(await holeImportZustand(abrufen));
+  }
+  if (archivBereich !== undefined) {
+    zeigeArchiv(await holeArchivZustand(abrufen));
+  }
 
   while (weiter()) {
-    await warte(letzter.laufend === undefined ? quellenTaktMs : taktMs);
-    zeige(await holeImportZustand(abrufen));
+    const eilig = letzter.laufend !== undefined || letzterArchiv.laufend !== undefined;
+    await warte(eilig ? taktMs : quellenTaktMs);
+
+    if (importBereich !== undefined) {
+      zeigeImport(await holeImportZustand(abrufen));
+    }
+    if (archivBereich !== undefined) {
+      // Eine aufgeklappte Liste zieht mit: ein vermisstes Foto
+      // verschwindet daraus, sobald der Abgleich es wiedergefunden hat.
+      for (const art of [...listen.keys()]) {
+        listen.set(art, await holeListe(abrufen, art));
+      }
+      zeigeArchiv(await holeArchivZustand(abrufen));
+    }
   }
 }

@@ -282,15 +282,35 @@ export function heicBytes(angaben: BildAngaben): Buffer {
   return baue(baue(0).datenOffset).datei;
 }
 
-/** Ein XMP-Sidecar, wie Lightroom es neben eine NEF legt. */
-export function xmpText(bewertung = 3): string {
+/**
+ * Ein XMP-Sidecar, wie Lightroom es neben eine NEF legt: Bewertung,
+ * Farbmarkierung und Stichwoerter.
+ */
+export function xmpText(
+  bewertung = 3,
+  { stichwoerter = [], farbe }: { stichwoerter?: readonly string[]; farbe?: string } = {},
+): string {
+  const subject =
+    stichwoerter.length === 0
+      ? []
+      : [
+          '   <dc:subject>',
+          '    <rdf:Bag>',
+          ...stichwoerter.map((wort) => `     <rdf:li>${wort}</rdf:li>`),
+          '    </rdf:Bag>',
+          '   </dc:subject>',
+        ];
+
   return [
     '<?xpacket begin="" id="W5M0MpCehiHzreSzNTczkc9d"?>',
     '<x:xmpmeta xmlns:x="adobe:ns:meta/">',
     ' <rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#">',
     '  <rdf:Description rdf:about=""',
     '    xmlns:xmp="http://ns.adobe.com/xap/1.0/"',
-    `    xmp:Rating="${bewertung}"/>`,
+    '    xmlns:dc="http://purl.org/dc/elements/1.1/"',
+    `    xmp:Rating="${bewertung}"${farbe === undefined ? '' : `\n    xmp:Label="${farbe}"`}>`,
+    ...subject,
+    '  </rdf:Description>',
     ' </rdf:RDF>',
     '</x:xmpmeta>',
     '<?xpacket end="w"?>',

@@ -12,6 +12,43 @@ export function pipelineKonfiguration(env?: UmgebungsVariablen): Konfiguration {
 }
 
 export {
+  fuehreAbgleichAus,
+  ordneEinheiten,
+  sammleBaum,
+  type AbgleichOptionen,
+  type BaumDatei,
+} from './abgleich.js';
+export {
+  ABGLEICH_TAKT_MS,
+  ArchivDienst,
+  auskunftText,
+  LISTEN_GRENZE,
+  type AbgleichFunktion,
+  type ArchivDienstOptionen,
+  type ArchivZustand,
+} from './archivdienst.js';
+export {
+  ALARM_TEXT,
+  alarmZeile,
+  istListenArt,
+  LEERER_STAND,
+  LISTEN_ARTEN,
+  listeZu,
+  speicherIndex,
+  zahlenZu,
+  type AbgleichLauf,
+  type AlarmArt,
+  type ArchivIndex,
+  type ArchivStand,
+  type ArchivZahlen,
+  type FotoAuskunft,
+  type IndexAlarm,
+  type IndexDatei,
+  type IndexFoto,
+  type ListenArt,
+} from './archivindex.js';
+export { Sperre, VORHABEN_TEXT, VorhabenLaeuft, type Vorhaben } from './sperre.js';
+export {
   ImportDienst,
   ImportLaeuftBereits,
   KeinImportLaeuft,
@@ -64,10 +101,14 @@ export {
 export { GesehenListe, type GesehenEintrag } from './gesehen.js';
 export { ladeLaeufe, merkeLauf, MAX_LAEUFE } from './laeufe.js';
 export {
+  deuteAngaben,
   deuteTags,
   exiftoolLeser,
+  KEINE_ANGABEN,
   zerlegeZeitangabe,
+  type AngabenLeser,
   type AufnahmeErgebnis,
+  type GeleseneAngaben,
   type MetadatenLeser,
 } from './metadaten.js';
 export { protokollText, schreibeProtokoll } from './protokoll.js';

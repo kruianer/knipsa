@@ -28,6 +28,7 @@ import {
 import { ladeLaeufe, merkeLauf } from './laeufe.js';
 import { exiftoolLeser, type MetadatenLeser } from './metadaten.js';
 import { ordnerPfad, pruefeOrdner, zeigeOrdner, type OrdnerAnsicht } from './ordnerbaum.js';
+import { Sperre } from './sperre.js';
 
 /** Eine Quelle, wie die Seite sie zeigt. */
 export interface QuellenZustand {
@@ -137,6 +138,17 @@ export interface ImportDienstOptionen {
    * benutzbar; ohne diesen Melder bliebe der Fehler unbemerkt.
    */
   readonly meldeFehler?: (fehler: Error) => void;
+  /**
+   * Gemeinsame Sperre mit Abgleich und Neuaufbau (req-007); ohne Angabe
+   * eine eigene. Import, Abgleich und Neuaufbau laufen nie gleichzeitig.
+   */
+  readonly sperre?: Sperre;
+  /**
+   * Wird nach jedem Lauf gerufen, auch nach einem abgebrochenen — der
+   * Index soll die neuen Dateien ohne Knopfdruck kennen (req-007). Die
+   * Sperre ist dann schon frei.
+   */
+  readonly nachLauf?: () => void | Promise<void>;
 }
 
 /** `true`, wenn der Pfad ein lesbares Verzeichnis ist. */
@@ -156,6 +168,8 @@ export class ImportDienst {
   readonly #lauf: LaufFunktion;
   readonly #leser: () => MetadatenLeser;
   readonly #meldeFehler: (fehler: Error) => void;
+  readonly #sperre: Sperre;
+  readonly #nachLauf: () => void | Promise<void>;
 
   #laufend: LaufenderImport | undefined;
   #arbeit: Promise<void> | undefined;
@@ -170,6 +184,8 @@ export class ImportDienst {
     lauf,
     leser,
     meldeFehler,
+    sperre,
+    nachLauf,
   }: ImportDienstOptionen) {
     this.#wurzel = wurzel;
     this.#quellen = quellen;
@@ -179,6 +195,8 @@ export class ImportDienst {
     this.#lauf = lauf ?? fuehreLaufAus;
     this.#leser = leser ?? exiftoolLeser;
     this.#meldeFehler = meldeFehler ?? ((): void => {});
+    this.#sperre = sperre ?? new Sperre();
+    this.#nachLauf = nachLauf ?? ((): void => {});
   }
 
   /**
@@ -264,6 +282,10 @@ export class ImportDienst {
       await ordnerPfad(quelle.pfad, begrenzt);
     }
 
+    // Erst wenn Quelle und Ordner geprueft sind, wird die Sperre
+    // genommen: ein abgewiesener Start soll den Abgleich nicht aufhalten.
+    this.#sperre.nimm('import');
+
     this.#abbruch = undefined;
     this.#laufend = {
       quelle: quelle.name,
@@ -335,6 +357,14 @@ export class ImportDienst {
       await leser.schliesse();
       this.#laufend = undefined;
       this.#abbruch = undefined;
+      this.#sperre.gib();
+    }
+
+    // Erst nach der freien Sperre: der Abgleich nimmt sie selbst.
+    try {
+      await this.#nachLauf();
+    } catch (fehler) {
+      this.#meldeFehler(fehler as Error);
     }
   }
 

@@ -106,6 +106,20 @@ export function zerlegeSchluessel(schluessel: string): ZerlegterSchluessel | und
   return { sekundenTeil: teil, platz };
 }
 
+/**
+ * Aufnahmezeit als lesbarer Text: `2019-06-14 10:15:00`. Das ist genau
+ * die Zeit aus dem Schluessel — ohne Zeitzone und ohne Umrechnung.
+ */
+export function aufnahmezeitText(teil: SekundenTeil): string {
+  const treffer = SEKUNDEN_TEIL.exec(teil);
+  if (treffer === null) {
+    throw new Error(`Sekundenteil ${teil} hat nicht die Form JJJJMMTT-HHMMSS`);
+  }
+
+  const [, jahr, monat, tag, stunde, minute, sekunde] = treffer;
+  return `${jahr}-${monat}-${tag} ${stunde}:${minute}:${sekunde}`;
+}
+
 /** Monatsordner `JJJJ-MM` zu einem Sekundenteil. */
 export function monatsOrdner(teil: SekundenTeil): string {
   const treffer = SEKUNDEN_TEIL.exec(teil);

@@ -107,6 +107,20 @@ export class GesehenListe {
   }
 
   /**
+   * Jeder Schluessel, der je vergeben wurde — auch wenn die Datei dazu
+   * inzwischen fehlt. Daraus weiss der Abgleich, welche Fotos vermisst
+   * werden (req-007).
+   */
+  alleSchluessel(): string[] {
+    const schluessel: string[] = [];
+    for (const eintrag of this.#nachPruefsumme.values()) {
+      schluessel.push(eintrag.schluessel);
+    }
+
+    return [...new Set(schluessel)].sort();
+  }
+
+  /**
    * Merkt einen Schluessel als vergeben, ohne ihn in die Liste zu
    * schreiben. Waehrend eines Laufs sind Schluessel damit schon belegt,
    * bevor die Datei fertig kopiert ist — vergeben wird keiner zweimal.

@@ -45,13 +45,13 @@ statt es Jahre später zu bemerken.
 
 # Acceptance Criteria
 
-- [ ] Given ich importiere `DSC_0412.NEF` als `20190614-101500a`, when
+- [x] Given ich importiere `DSC_0412.NEF` als `20190614-101500a`, when
   der Import fertig ist, then zählt der Bereich "Archiv" binnen 1 Minute
   ein Foto mehr, ohne dass ich "Abgleich jetzt" drücke.
-- [ ] Given die XMP von `20190614-101500a` hat 4 Sterne und das Stichwort
+- [x] Given die XMP von `20190614-101500a` hat 4 Sterne und das Stichwort
   "Toskana", when ich den Schlüssel nachschlage, then sehe ich 4 Sterne
   und "Toskana".
-- [ ] Given ich ändere in dieser XMP die Bewertung auf 5 Sterne, when ich
+- [x] Given ich ändere in dieser XMP die Bewertung auf 5 Sterne, when ich
   "Abgleich jetzt" drücke, then zeigt das Nachschlagen 5 Sterne.
 - [ ] Given ich entferne `20190614-101500a.NEF` aus dem Baum, when ich
   "Abgleich jetzt" drücke, then steht `20190614-101500a` unter "vermisst".

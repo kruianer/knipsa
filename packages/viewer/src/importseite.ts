@@ -9,6 +9,8 @@
  * nicht (siehe `delivery/security.md`).
  */
 
+import { zeitText } from './zeit.js';
+
 /** Eine Quelle, wie der Server sie meldet. */
 export interface QuellenZustand {
   readonly name: string;
@@ -123,12 +125,6 @@ function element<K extends keyof HTMLElementTagNameMap>(
 /** "x von y Dateien" — der Text des Fortschritts. */
 export function fortschrittText(laufend: LaufenderImport): string {
   return `${laufend.erledigt} von ${laufend.gesamt} Dateien`;
-}
-
-/** Zeitpunkt in der Schreibweise des Browsers. */
-function zeitText(iso: string): string {
-  const zeit = new Date(iso);
-  return Number.isNaN(zeit.getTime()) ? iso : zeit.toLocaleString('de-DE');
 }
 
 function zeileZu(eintrag: ErgebnisEintrag): string {
