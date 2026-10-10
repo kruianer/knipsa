@@ -57,15 +57,15 @@ statt es Jahre später zu bemerken.
   "Abgleich jetzt" drücke, then steht `20190614-101500a` unter "vermisst".
 - [x] Given `20190614-101500a.NEF` ist vermisst, when ich die Datei
   zurücklege und abgleiche, then steht sie NICHT mehr unter "vermisst".
-- [ ] Given an `20190614-101500a.NEF` wird ein Byte angehängt, when ich
+- [x] Given an `20190614-101500a.NEF` wird ein Byte angehängt, when ich
   abgleiche, then erscheint der Alarm "NEF verändert" für diesen
   Schlüssel.
-- [ ] Given ein HEIC bekommt eine neue Bewertung in die Datei geschrieben,
+- [x] Given ein HEIC bekommt eine neue Bewertung in die Datei geschrieben,
   when ich abgleiche, then erscheint KEIN Alarm und das Nachschlagen
   zeigt die neue Bewertung.
-- [ ] Given die Bilddaten eines JPEG werden verändert (z.B. zugeschnitten),
+- [x] Given die Bilddaten eines JPEG werden verändert (z.B. zugeschnitten),
   when ich abgleiche, then erscheint der Alarm "Bilddaten verändert".
-- [ ] Given ein Alarm "NEF verändert" steht an, when ich die
+- [x] Given ein Alarm "NEF verändert" steht an, when ich die
   ursprüngliche Datei zurücklege und abgleiche, then ist der Alarm weg.
 - [ ] Given ich kopiere `urlaub.jpg` von Hand nach
   `original/_wartend/2019-06/`, when ich abgleiche, then erscheint sie

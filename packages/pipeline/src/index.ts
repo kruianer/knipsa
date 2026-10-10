@@ -14,8 +14,10 @@ export function pipelineKonfiguration(env?: UmgebungsVariablen): Konfiguration {
 export {
   fuehreAbgleichAus,
   ordneEinheiten,
+  pruefeAlarm,
   sammleBaum,
   type AbgleichOptionen,
+  type AlarmPruefung,
   type BaumDatei,
 } from './abgleich.js';
 export {
@@ -98,7 +100,7 @@ export {
   type Quelle,
   type QuellenArt,
 } from './importlauf.js';
-export { GesehenListe, type GesehenEintrag } from './gesehen.js';
+export { GesehenListe, type BildEintrag, type GesehenEintrag } from './gesehen.js';
 export { ladeLaeufe, merkeLauf, MAX_LAEUFE } from './laeufe.js';
 export {
   deuteAngaben,

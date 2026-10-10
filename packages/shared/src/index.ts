@@ -34,6 +34,7 @@ export {
   wartendPfad,
   wartendVerzeichnis,
 } from './fotobaum.js';
+export { bildPruefsumme, heicBilddaten, jpegBilddaten } from './bilddaten.js';
 export {
   existiert,
   kopiereGeprueft,

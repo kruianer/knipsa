@@ -21,6 +21,7 @@ import { join, posix } from 'node:path';
 
 import {
   aufnahmezeitText,
+  bildPruefsumme,
   dateiArt,
   grundname,
   istFoto,
@@ -33,6 +34,7 @@ import {
 import { GesehenListe } from './gesehen.js';
 import {
   type AbgleichLauf,
+  type AlarmArt,
   type ArchivIndex,
   type ArchivStand,
   type IndexAlarm,
@@ -147,6 +149,49 @@ export function ordneEinheiten(dateien: readonly BaumDatei[]): {
   return { einheiten, unbekannte: unbekannte.sort() };
 }
 
+/** Was ueber eine Datei bekannt ist, wenn der Alarm geprueft wird. */
+export interface AlarmPruefung {
+  readonly art: DateiArt;
+  /** Pruefsumme der ganzen Datei, wie sie jetzt im Baum liegt. */
+  readonly importPruefsumme: string;
+  /** Pruefsumme nur der Bilddaten, wie sie jetzt im Baum liegen. */
+  readonly bildPruefsumme: string | undefined;
+  /** Bild-Pruefsumme vom ersten Einlesen, aus der Gesehen-Liste. */
+  readonly referenz: string | undefined;
+  /** Import-Pruefsummen, die unter diesem Schluessel vermerkt sind. */
+  readonly importSummen: ReadonlySet<string>;
+}
+
+/**
+ * Prueft, ob ein Original veraendert wurde.
+ *
+ * Eine NEF muss ihrer Import-Pruefsumme entsprechen — in sie schreibt
+ * niemand, Aenderungen stehen im Sidecar. Bei JPEG und HEIC zaehlt nur
+ * die Bild-Pruefsumme: neue Metadaten in der Datei sind erlaubt und
+ * loesen keinen Alarm aus.
+ *
+ * Fehlt jede Referenz (eine Datei, die Knipsa nie importiert hat und
+ * jetzt zum ersten Mal sieht), gibt es nichts zu vergleichen und keinen
+ * Alarm.
+ */
+export function pruefeAlarm({
+  art,
+  importPruefsumme,
+  bildPruefsumme,
+  referenz,
+  importSummen,
+}: AlarmPruefung): AlarmArt | undefined {
+  if (art === 'raw' && importSummen.size > 0) {
+    return importSummen.has(importPruefsumme) ? undefined : 'nef';
+  }
+
+  if (referenz === undefined || referenz === bildPruefsumme) {
+    return undefined;
+  }
+
+  return art === 'raw' ? 'nef' : 'bilddaten';
+}
+
 export interface AbgleichOptionen {
   /** Wurzel des Foto-Baums. */
   readonly wurzel: string;
@@ -216,10 +261,45 @@ export async function fuehreAbgleichAus({
               groesse: datei.groesse,
               geaendert: datei.geaendert,
               importPruefsumme: await pruefsumme(datei.vollPfad),
-              bildPruefsumme: undefined,
+              bildPruefsumme: istFoto(datei.art)
+                ? await bildPruefsumme(datei.vollPfad, datei.art)
+                : undefined,
               sidecar: gehoerenderSidecar,
             },
       );
+    }
+
+    // Alarm am Original: gilt fuer die fuehrende Datei des Fotos. Beim
+    // ersten Einlesen wird ihre Bild-Pruefsumme zum Schluessel vermerkt
+    // und danach nie geaendert — sie ist die Referenz.
+    const fuehrendeDatei =
+      fuehrend === undefined
+        ? undefined
+        : dateien.find((eintrag) => eintrag.pfad === fuehrend.pfad);
+
+    if (fuehrend !== undefined && fuehrendeDatei !== undefined) {
+      if (
+        gesehen.bildPruefsumme(einheit.schluessel) === undefined &&
+        fuehrendeDatei.bildPruefsumme !== undefined
+      ) {
+        await gesehen.merkeBildPruefsumme(
+          einheit.schluessel,
+          fuehrendeDatei.bildPruefsumme,
+          jetzt().toISOString(),
+        );
+      }
+
+      const art = pruefeAlarm({
+        art: fuehrend.art,
+        importPruefsumme: fuehrendeDatei.importPruefsumme,
+        bildPruefsumme: fuehrendeDatei.bildPruefsumme,
+        referenz: gesehen.bildPruefsumme(einheit.schluessel),
+        importSummen: gesehen.importPruefsummenZu(einheit.schluessel),
+      });
+
+      if (art !== undefined) {
+        alarme.push({ schluessel: einheit.schluessel, art, pfad: fuehrend.pfad });
+      }
     }
 
     // Die Angaben eines Fotos haengen an seiner fuehrenden Datei und

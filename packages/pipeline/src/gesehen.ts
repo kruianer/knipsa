@@ -1,6 +1,7 @@
 /**
  * Gesehen-Liste: jede je importierte Datei mit ihrer Import-Pruefsumme
- * und ihrem Schluessel.
+ * und ihrem Schluessel, dazu je Schluessel die Bild-Pruefsumme vom
+ * ersten Einlesen.
  *
  * Die Liste ist der einzige Ort, der sich NICHT aus dem Foto-Baum neu
  * aufbauen laesst — deshalb wird sie nur ergaenzt, nie neu geschrieben
@@ -29,6 +30,19 @@ export interface GesehenEintrag {
   readonly zeitpunkt: string;
 }
 
+/**
+ * Die Bild-Pruefsumme eines Schluessels, beim ersten Einlesen vermerkt
+ * und nie geaendert (req-007). Sie steht in derselben Liste wie die
+ * importierten Dateien, weil auch sie sich aus dem Baum nicht wieder
+ * herstellen laesst, sobald ein Original veraendert wurde.
+ */
+export interface BildEintrag {
+  readonly schluessel: string;
+  readonly bildPruefsumme: string;
+  /** Zeitpunkt des ersten Einlesens, ISO-8601. */
+  readonly zeitpunkt: string;
+}
+
 function istEintrag(wert: unknown): wert is GesehenEintrag {
   if (typeof wert !== 'object' || wert === null) {
     return false;
@@ -45,6 +59,15 @@ function istEintrag(wert: unknown): wert is GesehenEintrag {
   );
 }
 
+function istBildEintrag(wert: unknown): wert is BildEintrag {
+  if (typeof wert !== 'object' || wert === null) {
+    return false;
+  }
+
+  const satz = wert as Record<string, unknown>;
+  return typeof satz.schluessel === 'string' && typeof satz.bildPruefsumme === 'string';
+}
+
 /**
  * Die geladene Gesehen-Liste. Sie beantwortet zwei Fragen: "kenne ich
  * diese Datei schon?" und "welcher Buchstabe ist in dieser Sekunde der
@@ -56,6 +79,12 @@ export class GesehenListe {
 
   /** Sekundenteil -> schon vergebene Plaetze. */
   readonly #plaetze = new Map<SekundenTeil, Set<number>>();
+
+  /** Schluessel -> Import-Pruefsummen seiner Dateien. */
+  readonly #summenJeSchluessel = new Map<string, Set<string>>();
+
+  /** Schluessel -> Bild-Pruefsumme beim ersten Einlesen. */
+  readonly #bildSummen = new Map<string, string>();
 
   private constructor(readonly wurzel: string) {}
 
@@ -88,6 +117,8 @@ export class GesehenListe {
 
       if (istEintrag(gelesen)) {
         liste.#uebernehme(gelesen);
+      } else if (istBildEintrag(gelesen)) {
+        liste.#uebernehmeBild(gelesen);
       }
     }
 
@@ -97,6 +128,20 @@ export class GesehenListe {
   #uebernehme(eintrag: GesehenEintrag): void {
     if (!this.#nachPruefsumme.has(eintrag.pruefsumme)) {
       this.#nachPruefsumme.set(eintrag.pruefsumme, eintrag);
+    }
+
+    const summen = this.#summenJeSchluessel.get(eintrag.schluessel) ?? new Set<string>();
+    summen.add(eintrag.pruefsumme);
+    this.#summenJeSchluessel.set(eintrag.schluessel, summen);
+
+    this.belegeSchluessel(eintrag.schluessel);
+  }
+
+  #uebernehmeBild(eintrag: BildEintrag): void {
+    // Die erste vermerkte Bild-Pruefsumme gilt; spaetere Zeilen zum
+    // selben Schluessel aendern sie nicht.
+    if (!this.#bildSummen.has(eintrag.schluessel)) {
+      this.#bildSummen.set(eintrag.schluessel, eintrag.bildPruefsumme);
     }
     this.belegeSchluessel(eintrag.schluessel);
   }
@@ -118,6 +163,19 @@ export class GesehenListe {
     }
 
     return [...new Set(schluessel)].sort();
+  }
+
+  /**
+   * Die Import-Pruefsummen aller Dateien, die je unter diesem Schluessel
+   * importiert wurden. Daran erkennt der Abgleich eine veraenderte NEF.
+   */
+  importPruefsummenZu(schluessel: string): ReadonlySet<string> {
+    return this.#summenJeSchluessel.get(schluessel) ?? new Set<string>();
+  }
+
+  /** Die vermerkte Bild-Pruefsumme eines Schluessels, falls es eine gibt. */
+  bildPruefsumme(schluessel: string): string | undefined {
+    return this.#bildSummen.get(schluessel);
   }
 
   /**
@@ -158,6 +216,36 @@ export class GesehenListe {
       return;
     }
 
+    await this.#haengeAn(eintraege);
+
+    for (const eintrag of eintraege) {
+      this.#uebernehme(eintrag);
+    }
+  }
+
+  /**
+   * Vermerkt die Bild-Pruefsumme eines Schluessels. Steht schon eine da,
+   * bleibt sie — sie ist die Referenz und wird nie geaendert (req-007).
+   */
+  async merkeBildPruefsumme(
+    schluessel: string,
+    bildPruefsumme: string,
+    zeitpunkt: string,
+  ): Promise<void> {
+    if (this.#bildSummen.has(schluessel)) {
+      return;
+    }
+
+    const eintrag: BildEintrag = { schluessel, bildPruefsumme, zeitpunkt };
+    await this.#haengeAn([eintrag]);
+    this.#uebernehmeBild(eintrag);
+  }
+
+  /**
+   * Haengt Zeilen an die Liste an und sichert sie auf die Platte. Die
+   * Liste wird nur ergaenzt, nie neu geschrieben.
+   */
+  async #haengeAn(eintraege: readonly (GesehenEintrag | BildEintrag)[]): Promise<void> {
     const pfad = gesehenDatei(this.wurzel);
     await mkdir(dirname(pfad), { recursive: true });
 
@@ -168,10 +256,6 @@ export class GesehenListe {
       await datei.sync();
     } finally {
       await datei.close();
-    }
-
-    for (const eintrag of eintraege) {
-      this.#uebernehme(eintrag);
     }
   }
 }

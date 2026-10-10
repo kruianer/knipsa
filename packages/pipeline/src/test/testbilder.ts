@@ -23,6 +23,12 @@ export interface BildAngaben {
    * verschiedene Pruefsummen.
    */
   readonly fuellung?: number;
+  /**
+   * Bewertung in Sternen, als EXIF-Feld `Rating`. Damit laesst sich der
+   * Fall nachstellen, dass jemand eine Bewertung in die Datei schreibt:
+   * die Metadaten aendern sich, die Bilddaten nicht.
+   */
+  readonly bewertung?: number;
 }
 
 const TYP_SHORT = 3;
@@ -33,6 +39,7 @@ const TAG_EXIF_IFD = 0x8769;
 const TAG_DATE_TIME_ORIGINAL = 0x9003;
 const TAG_SUB_SEC_TIME_ORIGINAL = 0x9291;
 const TAG_STRIP_OFFSETS = 273;
+const TAG_RATING = 0x4746;
 
 interface Eintrag {
   readonly tag: number;
@@ -78,20 +85,29 @@ function tiffBlock(angaben: BildAngaben, mitBild: boolean): Buffer {
 
   const bildBytes = mitBild ? 1 + (angaben.fuellung ?? 0) : 0;
 
-  const ifd0Eintraege: Eintrag[] = mitBild
-    ? [
-        { tag: 256, typ: TYP_SHORT, anzahl: 1, wert: 1 }, // ImageWidth
-        { tag: 257, typ: TYP_SHORT, anzahl: 1, wert: 1 }, // ImageHeight
-        { tag: 258, typ: TYP_SHORT, anzahl: 1, wert: 8 }, // BitsPerSample
-        { tag: 259, typ: TYP_SHORT, anzahl: 1, wert: 1 }, // Compression: keine
-        { tag: 262, typ: TYP_SHORT, anzahl: 1, wert: 1 }, // PhotometricInterpretation
-        { tag: TAG_STRIP_OFFSETS, typ: TYP_LONG, anzahl: 1, wert: 0 }, // wird unten gesetzt
-        { tag: 277, typ: TYP_SHORT, anzahl: 1, wert: 1 }, // SamplesPerPixel
-        { tag: 278, typ: TYP_SHORT, anzahl: 1, wert: 1 }, // RowsPerStrip
-        { tag: 279, typ: TYP_LONG, anzahl: 1, wert: bildBytes }, // StripByteCounts
-        { tag: TAG_EXIF_IFD, typ: TYP_LONG, anzahl: 1, wert: 0 }, // wird unten gesetzt
-      ]
-    : [{ tag: TAG_EXIF_IFD, typ: TYP_LONG, anzahl: 1, wert: 0 }];
+  const bewertung: Eintrag[] =
+    angaben.bewertung === undefined
+      ? []
+      : [{ tag: TAG_RATING, typ: TYP_SHORT, anzahl: 1, wert: angaben.bewertung }];
+
+  // TIFF verlangt die Eintraege eines IFD nach Tag-Nummer aufsteigend.
+  const ifd0Eintraege: Eintrag[] = (
+    mitBild
+      ? [
+          { tag: 256, typ: TYP_SHORT, anzahl: 1, wert: 1 }, // ImageWidth
+          { tag: 257, typ: TYP_SHORT, anzahl: 1, wert: 1 }, // ImageHeight
+          { tag: 258, typ: TYP_SHORT, anzahl: 1, wert: 8 }, // BitsPerSample
+          { tag: 259, typ: TYP_SHORT, anzahl: 1, wert: 1 }, // Compression: keine
+          { tag: 262, typ: TYP_SHORT, anzahl: 1, wert: 1 }, // PhotometricInterpretation
+          { tag: TAG_STRIP_OFFSETS, typ: TYP_LONG, anzahl: 1, wert: 0 }, // wird unten gesetzt
+          { tag: 277, typ: TYP_SHORT, anzahl: 1, wert: 1 }, // SamplesPerPixel
+          { tag: 278, typ: TYP_SHORT, anzahl: 1, wert: 1 }, // RowsPerStrip
+          { tag: 279, typ: TYP_LONG, anzahl: 1, wert: bildBytes }, // StripByteCounts
+          ...bewertung,
+          { tag: TAG_EXIF_IFD, typ: TYP_LONG, anzahl: 1, wert: 0 }, // wird unten gesetzt
+        ]
+      : [...bewertung, { tag: TAG_EXIF_IFD, typ: TYP_LONG, anzahl: 1, wert: 0 }]
+  ).sort((a, b) => a.tag - b.tag);
 
   const ifd0Offset = 8;
   const ifd0Groesse = 2 + ifd0Eintraege.length * 12 + 4;

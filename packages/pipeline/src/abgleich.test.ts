@@ -1,18 +1,21 @@
-import { mkdtemp, rm, utimes } from 'node:fs/promises';
+import { appendFile, mkdtemp, rm, utimes } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
-import { fuehreAbgleichAus } from './abgleich.js';
+import { pruefsumme } from '@knipsa/shared';
+
+import { fuehreAbgleichAus, pruefeAlarm } from './abgleich.js';
 import { auskunftText } from './archivdienst.js';
 import { speicherIndex, type ArchivIndex, type FotoAuskunft } from './archivindex.js';
 import { GesehenListe } from './gesehen.js';
 import { KEINE_ANGABEN, type AngabenLeser, type GeleseneAngaben } from './metadaten.js';
-import { nefBytes, schreibeDatei, xmpText } from './test/testbilder.js';
+import { heicBytes, jpegBytes, nefBytes, schreibeDatei, xmpText } from './test/testbilder.js';
 
 const SCHLUESSEL = '20190614-101500a';
 const MONAT = '_wartend/2019-06';
+const AUFNAHME = '2019:06:14 10:15:00';
 
 let wurzel: string;
 let index: ArchivIndex;
@@ -54,23 +57,44 @@ function leserMit(
 
 /** Legt NEF und XMP eines Fotos im Wartebereich ab. */
 async function legeFotoAb(bewertung = 4): Promise<void> {
-  await schreibeDatei(
-    imBaum(`${MONAT}/${SCHLUESSEL}.NEF`),
-    nefBytes({ datum: '2019:06:14 10:15:00' }),
-  );
+  await schreibeDatei(imBaum(`${MONAT}/${SCHLUESSEL}.NEF`), nefBytes({ datum: AUFNAHME }));
   await schreibeDatei(imBaum(`${MONAT}/${SCHLUESSEL}.xmp`), xmpText(bewertung));
 }
 
-/** Vermerkt eine importierte Datei in der Gesehen-Liste. */
-async function merkeGesehen(schluessel = SCHLUESSEL, endung = '.NEF'): Promise<void> {
+/**
+ * Vermerkt eine Datei in der Gesehen-Liste, wie der Import es tut: mit
+ * ihrer echten Import-Pruefsumme.
+ */
+async function merkeDatei(pfad: string, schluessel = SCHLUESSEL): Promise<void> {
   const gesehen = await GesehenListe.lade(wurzel);
   await gesehen.ergaenze([
     {
-      pruefsumme: `summe${schluessel}${endung}`,
+      pruefsumme: await pruefsumme(pfad),
       schluessel,
       quelle: 'Test',
       ordner: '',
-      dateiname: `DSC_0412${endung}`,
+      dateiname: `DSC_0412${pfad.slice(pfad.lastIndexOf('.'))}`,
+      zeitpunkt: '2026-10-10T08:00:00.000Z',
+    },
+  ]);
+}
+
+/** Vermerkt NEF und Sidecar des Fotos, wie nach einem Import. */
+async function merkeNefGesehen(): Promise<void> {
+  await merkeDatei(imBaum(`${MONAT}/${SCHLUESSEL}.NEF`));
+  await merkeDatei(imBaum(`${MONAT}/${SCHLUESSEL}.xmp`));
+}
+
+/** Vermerkt einen Schluessel, zu dem es keine Datei (mehr) gibt. */
+async function merkeSchluessel(schluessel = SCHLUESSEL): Promise<void> {
+  const gesehen = await GesehenListe.lade(wurzel);
+  await gesehen.ergaenze([
+    {
+      pruefsumme: `summe-${schluessel}`,
+      schluessel,
+      quelle: 'Test',
+      ordner: '',
+      dateiname: 'DSC_0412.NEF',
       zeitpunkt: '2026-10-10T08:00:00.000Z',
     },
   ]);
@@ -137,10 +161,7 @@ describe('Abgleich', () => {
   });
 
   it('liest ohne Sidecar die Angaben aus der NEF selbst', async () => {
-    await schreibeDatei(
-      imBaum(`${MONAT}/${SCHLUESSEL}.NEF`),
-      nefBytes({ datum: '2019:06:14 10:15:00' }),
-    );
+    await schreibeDatei(imBaum(`${MONAT}/${SCHLUESSEL}.NEF`), nefBytes({ datum: AUFNAHME }));
     const leser = leserMit({ [`${SCHLUESSEL}.NEF`]: { bewertung: 2 } });
 
     await fuehreAbgleichAus({ wurzel, index, leser });
@@ -215,7 +236,7 @@ describe('Abgleich', () => {
 
   it('zaehlt ein Foto aus der Gesehen-Liste auch ohne Datei im Baum', async () => {
     await legeFotoAb();
-    await merkeGesehen();
+    await merkeNefGesehen();
     await fuehreAbgleichAus({ wurzel, index, leser: leserMit({}) });
 
     await rm(imBaum(`${MONAT}/${SCHLUESSEL}.NEF`));
@@ -230,7 +251,7 @@ describe('Abgleich', () => {
 
   it('nimmt ein zurueckgelegtes Foto wieder aus der Liste "vermisst"', async () => {
     await legeFotoAb();
-    await merkeGesehen();
+    await merkeNefGesehen();
     await fuehreAbgleichAus({ wurzel, index, leser: leserMit({}) });
     await rm(imBaum(`${MONAT}/${SCHLUESSEL}.NEF`));
     await rm(imBaum(`${MONAT}/${SCHLUESSEL}.xmp`));
@@ -253,7 +274,7 @@ describe('Abgleich', () => {
 
   it('behaelt die Angaben eines vermissten Fotos', async () => {
     await legeFotoAb();
-    await merkeGesehen();
+    await merkeNefGesehen();
     await fuehreAbgleichAus({
       wurzel,
       index,
@@ -271,7 +292,7 @@ describe('Abgleich', () => {
   });
 
   it('kennt ein vermisstes Foto auch nach einem leeren Index wieder', async () => {
-    await merkeGesehen();
+    await merkeSchluessel();
 
     const lauf = await fuehreAbgleichAus({ wurzel, index, leser: leserMit({}) });
 
@@ -280,6 +301,159 @@ describe('Abgleich', () => {
     expect((await auskunftVon(SCHLUESSEL)).foto.aufnahmezeit).toBe('2019-06-14 10:15:00');
   });
 
+  it('nimmt die Bild-Pruefsumme eines Fotos in den Index auf', async () => {
+    await legeFotoAb();
+
+    await fuehreAbgleichAus({ wurzel, index, leser: leserMit({}) });
+
+    const stand = await index.lade();
+    const nef = stand.dateien.find((datei) => datei.pfad.endsWith('.NEF'));
+    const sidecar = stand.dateien.find((datei) => datei.pfad.endsWith('.xmp'));
+
+    expect(nef?.bildPruefsumme).toMatch(/^[0-9a-f]{64}$/);
+    expect(sidecar?.bildPruefsumme).toBeUndefined();
+  });
+
+  it('vermerkt die Bild-Pruefsumme beim ersten Einlesen in der Gesehen-Liste', async () => {
+    await legeFotoAb();
+
+    await fuehreAbgleichAus({ wurzel, index, leser: leserMit({}) });
+
+    const stand = await index.lade();
+    const nef = stand.dateien.find((datei) => datei.pfad.endsWith('.NEF'));
+    const gesehen = await GesehenListe.lade(wurzel);
+
+    expect(gesehen.bildPruefsumme(SCHLUESSEL)).toBe(nef?.bildPruefsumme);
+  });
+});
+
+describe('Alarm am Original', () => {
+  it('meldet "NEF verändert", wenn ein Byte angehaengt wurde', async () => {
+    await legeFotoAb();
+    await merkeNefGesehen();
+    await fuehreAbgleichAus({ wurzel, index, leser: leserMit({}) });
+
+    await appendFile(imBaum(`${MONAT}/${SCHLUESSEL}.NEF`), Buffer.from([0x00]));
+    const lauf = await fuehreAbgleichAus({ wurzel, index, leser: leserMit({}) });
+
+    expect(lauf.alarme).toBe(1);
+    await expect(index.liste('alarme', 500)).resolves.toEqual([
+      `${SCHLUESSEL} — NEF verändert (${MONAT}/${SCHLUESSEL}.NEF)`,
+    ]);
+  });
+
+  it('nimmt den Alarm zurueck, sobald die urspruengliche Datei wieder daliegt', async () => {
+    await legeFotoAb();
+    await merkeNefGesehen();
+    await fuehreAbgleichAus({ wurzel, index, leser: leserMit({}) });
+
+    await appendFile(imBaum(`${MONAT}/${SCHLUESSEL}.NEF`), Buffer.from([0x00]));
+    await fuehreAbgleichAus({ wurzel, index, leser: leserMit({}) });
+    await schreibeDatei(imBaum(`${MONAT}/${SCHLUESSEL}.NEF`), nefBytes({ datum: AUFNAHME }));
+    const lauf = await fuehreAbgleichAus({ wurzel, index, leser: leserMit({}) });
+
+    expect(lauf.alarme).toBe(0);
+    await expect(index.liste('alarme', 500)).resolves.toEqual([]);
+    expect(auskunftText(await auskunftVon(SCHLUESSEL))).toContain('Zustand: normal');
+  });
+
+  it('bleibt beim Alarm, solange die NEF veraendert ist', async () => {
+    await legeFotoAb();
+    await merkeNefGesehen();
+    await fuehreAbgleichAus({ wurzel, index, leser: leserMit({}) });
+    await appendFile(imBaum(`${MONAT}/${SCHLUESSEL}.NEF`), Buffer.from([0x00]));
+
+    await fuehreAbgleichAus({ wurzel, index, leser: leserMit({}) });
+    const zweiter = await fuehreAbgleichAus({ wurzel, index, leser: leserMit({}) });
+
+    expect(zweiter.alarme).toBe(1);
+    expect(auskunftText(await auskunftVon(SCHLUESSEL))).toContain('Zustand: NEF verändert');
+  });
+
+  it('meldet keinen Alarm, wenn ein HEIC eine neue Bewertung bekommt', async () => {
+    const pfad = imBaum(`${MONAT}/${SCHLUESSEL}.HEIC`);
+    await schreibeDatei(pfad, heicBytes({ datum: AUFNAHME }));
+    await fuehreAbgleichAus({ wurzel, index, leser: leserMit({}) });
+
+    // Jemand schreibt eine Bewertung in die Datei: die Metadaten werden
+    // laenger, die Bilddaten bleiben Byte fuer Byte dieselben.
+    await schreibeDatei(pfad, heicBytes({ datum: AUFNAHME, bewertung: 5 }));
+    const lauf = await fuehreAbgleichAus({
+      wurzel,
+      index,
+      leser: leserMit({ [`${SCHLUESSEL}.HEIC`]: { bewertung: 5 } }),
+    });
+
+    expect(lauf.alarme).toBe(0);
+    expect((await auskunftVon(SCHLUESSEL)).foto.bewertung).toBe(5);
+  });
+
+  it('meldet "Bilddaten verändert", wenn ein JPEG neu gerechnet wurde', async () => {
+    const pfad = imBaum(`${MONAT}/${SCHLUESSEL}.JPG`);
+    await schreibeDatei(pfad, jpegBytes({ datum: AUFNAHME }));
+    await fuehreAbgleichAus({ wurzel, index, leser: leserMit({}) });
+
+    // Zugeschnitten: dieselbe Aufnahme, andere Bilddaten.
+    await schreibeDatei(pfad, jpegBytes({ datum: AUFNAHME, fuellung: 32 }));
+    const lauf = await fuehreAbgleichAus({ wurzel, index, leser: leserMit({}) });
+
+    expect(lauf.alarme).toBe(1);
+    await expect(index.liste('alarme', 500)).resolves.toEqual([
+      `${SCHLUESSEL} — Bilddaten verändert (${MONAT}/${SCHLUESSEL}.JPG)`,
+    ]);
+  });
+
+  it('meldet keinen Alarm, wenn ein JPEG nur neue Metadaten bekommt', async () => {
+    const pfad = imBaum(`${MONAT}/${SCHLUESSEL}.JPG`);
+    await schreibeDatei(pfad, jpegBytes({ datum: AUFNAHME }));
+    await fuehreAbgleichAus({ wurzel, index, leser: leserMit({}) });
+
+    await schreibeDatei(pfad, jpegBytes({ datum: AUFNAHME, bewertung: 3 }));
+    const lauf = await fuehreAbgleichAus({ wurzel, index, leser: leserMit({}) });
+
+    expect(lauf.alarme).toBe(0);
+  });
+});
+
+describe('pruefeAlarm', () => {
+  const basis = {
+    importPruefsumme: 'jetzt',
+    bildPruefsumme: 'bild-jetzt',
+    referenz: 'bild-jetzt',
+    importSummen: new Set(['jetzt']),
+  };
+
+  it('meldet eine NEF, die nicht mehr ihrer Import-Pruefsumme entspricht', () => {
+    expect(pruefeAlarm({ ...basis, art: 'raw', importPruefsumme: 'anders' })).toBe('nef');
+    expect(pruefeAlarm({ ...basis, art: 'raw' })).toBeUndefined();
+  });
+
+  it('nimmt bei einer nie importierten NEF die Bild-Pruefsumme als Referenz', () => {
+    const ohneImport = { ...basis, art: 'raw' as const, importSummen: new Set<string>() };
+
+    expect(pruefeAlarm({ ...ohneImport, bildPruefsumme: 'anders' })).toBe('nef');
+    expect(pruefeAlarm(ohneImport)).toBeUndefined();
+  });
+
+  it('meldet bei JPEG und HEIC nur veraenderte Bilddaten', () => {
+    expect(pruefeAlarm({ ...basis, art: 'jpeg', importPruefsumme: 'anders' })).toBeUndefined();
+    expect(pruefeAlarm({ ...basis, art: 'heic', bildPruefsumme: 'anders' })).toBe('bilddaten');
+  });
+
+  it('meldet nichts, solange es keine Referenz gibt', () => {
+    expect(
+      pruefeAlarm({
+        ...basis,
+        art: 'jpeg',
+        referenz: undefined,
+        bildPruefsumme: 'anders',
+        importSummen: new Set<string>(),
+      }),
+    ).toBeUndefined();
+  });
+});
+
+describe('weitere Faelle', () => {
   it('kommt mit einem Baum ohne original-Verzeichnis zurecht', async () => {
     const lauf = await fuehreAbgleichAus({ wurzel, index, leser: leserMit({}) });
 
