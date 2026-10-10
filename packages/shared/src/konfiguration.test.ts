@@ -24,7 +24,38 @@ describe('leseKonfiguration', () => {
       fotosPfad: '/fotos',
       serverHost: '0.0.0.0',
       serverPort: 3000,
+      importQuellen: [],
     });
+  });
+
+  describe('IMPORT_QUELLEN', () => {
+    it('ist leer, wenn nichts eingestellt ist', () => {
+      expect(leseKonfiguration(vollstaendig).importQuellen).toEqual([]);
+      expect(leseKonfiguration({ ...vollstaendig, IMPORT_QUELLEN: '  ' }).importQuellen).toEqual(
+        [],
+      );
+    });
+
+    it('liest Name und Pfad je Quelle', () => {
+      const konfig = leseKonfiguration({
+        ...vollstaendig,
+        IMPORT_QUELLEN: 'Test=/quellen/test; Altbestand=/quellen/alt',
+      });
+
+      expect(konfig.importQuellen).toEqual([
+        { name: 'Test', pfad: '/quellen/test' },
+        { name: 'Altbestand', pfad: '/quellen/alt' },
+      ]);
+    });
+
+    it.each(['Test', 'Test=', '=/quellen/test', 'Test=quellen/test', 'Test=/a;Test=/b'])(
+      'lehnt %s ab',
+      (wert) => {
+        expect(() => leseKonfiguration({ ...vollstaendig, IMPORT_QUELLEN: wert })).toThrow(
+          'IMPORT_QUELLEN',
+        );
+      },
+    );
   });
 
   it('akzeptiert prod als Umgebung', () => {

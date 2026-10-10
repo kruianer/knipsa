@@ -1,10 +1,12 @@
 import Fastify, { type FastifyInstance } from 'fastify';
 import type { Kysely } from 'kysely';
 
+import { ImportDienst } from '@knipsa/pipeline';
 import type { Konfiguration } from '@knipsa/shared';
 
 import { baueDatenbank, type Datenbank } from './db/datenbank.js';
 import { registriereHealthRouten, standardPruefungen, type Pruefungen } from './health.js';
+import { registriereImportRouten } from './import.js';
 import { registriereViewer, viewerVerzeichnis } from './viewer.js';
 
 export interface AppOptionen {
@@ -23,6 +25,11 @@ export interface AppOptionen {
   readonly pruefungen?: Pruefungen;
   /** Verzeichnis mit dem gebauten Viewer. */
   readonly viewer?: string;
+  /**
+   * Import-Dienst. Ohne Angabe wird er aus der Konfiguration gebaut:
+   * Quellen aus `IMPORT_QUELLEN`, Foto-Baum aus `FOTOS_PFAD`.
+   */
+  readonly importDienst?: ImportDienst;
 }
 
 /**
@@ -35,12 +42,14 @@ export function baueApp({
   db,
   pruefungen,
   viewer = viewerVerzeichnis(),
+  importDienst,
 }: AppOptionen): FastifyInstance {
   const app = Fastify({ logger });
 
   app.decorate('knipsaKonfiguration', konfig);
 
   registriereHealthRouten(app, pruefungen ?? baueStandardPruefungen(app, konfig, db));
+  registriereImportRouten(app, importDienst ?? baueImportDienst(app, konfig));
 
   // Der Viewer wird fuer dev und prod gleich gebaut; welche Umgebung er
   // anzeigt, erfaehrt er erst hier. Nur die Umgebung, nichts weiter.
@@ -51,6 +60,17 @@ export function baueApp({
   registriereViewer(app, viewer);
 
   return app;
+}
+
+function baueImportDienst(app: FastifyInstance, konfig: Konfiguration): ImportDienst {
+  return new ImportDienst({
+    wurzel: konfig.fotosPfad,
+    quellen: konfig.importQuellen,
+    // Nur Quelle und Meldung ins Log, nie ein Pfad aus dem Foto-Baum.
+    meldeFehler: (fehler) => {
+      app.log.error({ fehler: fehler.message }, 'Import abgebrochen');
+    },
+  });
 }
 
 function baueStandardPruefungen(

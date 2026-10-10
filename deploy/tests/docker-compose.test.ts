@@ -86,14 +86,31 @@ describe('Datenbank', () => {
 });
 
 describe('Foto-Baum', () => {
-  it('bindet FOTOS_ROOT im Container unter /fotos ein, nur lesend', () => {
-    expect(server?.volumes).toEqual(['${FOTOS_ROOT}:/fotos:ro']);
+  it('bindet FOTOS_ROOT im Container unter /fotos ein, beschreibbar', () => {
+    // Der Import schreibt in den Baum (req-005): Fotos, Gesehen-Liste,
+    // Protokolle. Deshalb kein `:ro`.
+    expect(server?.volumes).toContain('${FOTOS_ROOT}:/fotos');
     expect(server?.environment?.FOTOS_PFAD).toBe('/fotos');
   });
 
   it('nagelt keinen Pfad des Foto-Baums fest', () => {
     expect(quelle).not.toContain('/home/kruianer/knipsa-fotos');
     expect(quelle).not.toContain('/mnt/');
+  });
+});
+
+describe('Import-Quellen (req-005)', () => {
+  it('bindet QUELLEN_ROOT unter /quellen ein, nur lesend', () => {
+    expect(server?.volumes).toContain('${QUELLEN_ROOT}:/quellen:ro');
+  });
+
+  it('bindet neben Foto-Baum und Quellen nichts weiteres ein', () => {
+    expect(server?.volumes).toEqual(['${FOTOS_ROOT}:/fotos', '${QUELLEN_ROOT}:/quellen:ro']);
+  });
+
+  it('nagelt keinen Quellpfad fest und setzt die Quellen-Liste nicht selbst', () => {
+    expect(quelle).not.toContain('knipsa-quellen');
+    expect(server?.environment?.IMPORT_QUELLEN).toBeUndefined();
   });
 });
 

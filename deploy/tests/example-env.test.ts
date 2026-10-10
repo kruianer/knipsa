@@ -2,8 +2,9 @@ import { describe, expect, it } from 'vitest';
 
 import { leseDatei } from './pfade.js';
 
-/** Alle Variablen, die in den env-Dateien auf dem Beelink stehen (req-001). */
+/** Alle Variablen, die in den env-Dateien auf dem Beelink stehen. */
 const erwarteteVariablen = [
+  // req-001
   'KNIPSA_ENV',
   'KNIPSA_PORT',
   'APP_ORIGIN',
@@ -12,6 +13,9 @@ const erwarteteVariablen = [
   'POSTGRES_DB',
   'DATABASE_URL',
   'FOTOS_ROOT',
+  // req-005
+  'QUELLEN_ROOT',
+  'IMPORT_QUELLEN',
 ];
 
 const zeilen = leseDatei('deploy/example.env')

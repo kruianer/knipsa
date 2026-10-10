@@ -17,7 +17,8 @@
     "declarationMap": true,
     "sourceMap": true,
     "paths": {
-      "@knipsa/shared": ["./packages/shared/src/index.ts"]
+      "@knipsa/shared": ["./packages/shared/src/index.ts"],
+      "@knipsa/pipeline": ["./packages/pipeline/src/index.ts"]
     }
   }
 }

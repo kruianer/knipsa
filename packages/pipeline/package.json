@@ -15,6 +15,7 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@knipsa/shared": "workspace:*"
+    "@knipsa/shared": "workspace:*",
+    "exiftool-vendored": "^39.0.1"
   }
 }

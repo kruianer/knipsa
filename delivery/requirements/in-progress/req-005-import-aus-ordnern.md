@@ -55,22 +55,22 @@ Quelle bleibt dabei unangetastet.
 
 # Acceptance Criteria
 
-- [ ] Given die Quelle "Test" enthält `Toskana 2019/DSC_0412.NEF`,
+- [x] Given die Quelle "Test" enthält `Toskana 2019/DSC_0412.NEF`,
   aufgenommen am 14.06.2019 um 10:15:00, when ich "Importieren" drücke,
   then zeigt das Ergebnis `Toskana 2019/DSC_0412.NEF →
   _wartend/2019-06/20190614-101500a.NEF`.
-- [ ] Given neben `DSC_0412.NEF` liegt `DSC_0412.xmp`, when ich
+- [x] Given neben `DSC_0412.NEF` liegt `DSC_0412.xmp`, when ich
   importiere, then erscheint im Ergebnis auch `DSC_0412.xmp →
   _wartend/2019-06/20190614-101500a.xmp`.
-- [ ] Given drei Fotos einer Serie, alle aufgenommen am 14.06.2019 um
+- [x] Given drei Fotos einer Serie, alle aufgenommen am 14.06.2019 um
   10:16:05, when ich importiere, then bekommen sie in Aufnahmereihenfolge
   die Schlüssel `20190614-101605a`, `…b` und `…c`.
-- [ ] Given `20190614-101500a` ist schon vergeben, when ich ein anderes
+- [x] Given `20190614-101500a` ist schon vergeben, when ich ein anderes
   Foto derselben Sekunde importiere, then bekommt es `20190614-101500b`.
-- [ ] Given die Quelle "Test" wurde bereits vollständig importiert, when
+- [x] Given die Quelle "Test" wurde bereits vollständig importiert, when
   ich erneut importiere, then meldet das Ergebnis 0 neu und alle Fotos als
   "schon bekannt".
-- [ ] Given dieselbe Datei liegt umbenannt als `kopie.NEF` in einem
+- [x] Given dieselbe Datei liegt umbenannt als `kopie.NEF` in einem
   anderen Unterordner der Quelle, when ich importiere, then gilt sie als
   "schon bekannt".
 - [ ] Given ein JPEG ohne gespeicherte Aufnahmezeit, when ich importiere,

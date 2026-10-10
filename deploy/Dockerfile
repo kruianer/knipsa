@@ -5,6 +5,12 @@ FROM node:24-slim
 WORKDIR /app
 ENV CI=true
 
+# `exiftool` liest die Aufnahmezeit aus NEF, JPEG und HEIC. Es kommt als
+# Paket mit (`exiftool-vendored`), braucht aber Perl im Image.
+RUN apt-get update \
+  && apt-get install --yes --no-install-recommends perl \
+  && rm -rf /var/lib/apt/lists/*
+
 # pnpm wird im Image installiert, nicht auf dem Host.
 RUN npm install --global pnpm@12.10.1
 

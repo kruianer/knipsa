@@ -1,6 +1,8 @@
+import { holeImportZustand, starteImport } from './importdaten.js';
+import { IMPORT_UNBEKANNT, zeichneImport, type ImportZustand } from './importseite.js';
 import { ampelFarbe, ampelText, holeZustand, UMGEBUNG_UNBEKANNT, type Zustand } from './zustand.js';
 
-/** Zeichnet die Minimalseite: Titel, Umgebung und Ampel. */
+/** Zeichnet den Kopf der Seite: Titel, Umgebung und Ampel. */
 export function zeichneSeite(wurzel: Element, zustand: Zustand): void {
   const farbe = ampelFarbe(zustand.ready);
   const dokument = wurzel.ownerDocument;
@@ -26,13 +28,35 @@ export function zeichneSeite(wurzel: Element, zustand: Zustand): void {
   wurzel.replaceChildren(titel, umgebung, ampel);
 }
 
-type Abrufen = (url: string) => Promise<Response>;
+type Abrufen = (url: string, optionen?: RequestInit) => Promise<Response>;
+
+/** Abstand zwischen zwei Abfragen des Fortschritts. */
+export const FORTSCHRITT_TAKT_MS = 1000;
+
+export interface SeiteOptionen {
+  /** Wartezeit zwischen zwei Abfragen; in Tests kurz. */
+  readonly taktMs?: number;
+  /** Wartefunktion; in Tests ersetzbar. */
+  readonly warte?: (ms: number) => Promise<void>;
+}
+
+function schlafe(ms: number): Promise<void> {
+  return new Promise((fertig) => setTimeout(fertig, ms));
+}
 
 /**
  * Baut die Seite auf: erst der bekannte Zustand "keine Antwort", dann das
- * Ergebnis der Abfrage — so steht nie eine leere Seite da.
+ * Ergebnis der Abfragen — so steht nie eine leere Seite da.
+ *
+ * Laeuft ein Import, wird der Bereich "Import" im Takt neu abgefragt.
+ * Der Fortschritt kommt dabei immer vom Server: ein Neuladen der Seite
+ * zeigt ihn deshalb unveraendert weiter.
  */
-export async function starteSeite(dokument: Document, abrufen: Abrufen): Promise<void> {
+export async function starteSeite(
+  dokument: Document,
+  abrufen: Abrufen,
+  optionen: SeiteOptionen = {},
+): Promise<void> {
   const wurzel = dokument.querySelector('#app');
   if (wurzel === null) {
     return;
@@ -40,4 +64,44 @@ export async function starteSeite(dokument: Document, abrufen: Abrufen): Promise
 
   zeichneSeite(wurzel, { umgebung: UMGEBUNG_UNBEKANNT, ready: { erreichbar: false } });
   zeichneSeite(wurzel, await holeZustand(abrufen));
+
+  const bereich = dokument.createElement('section');
+  bereich.id = 'import';
+  wurzel.append(bereich);
+
+  await fuehreImportBereich(bereich, abrufen, optionen);
+}
+
+/**
+ * Haelt den Bereich "Import" aktuell. Kehrt zurueck, sobald kein Import
+ * mehr laeuft — danach gibt es nichts zu beobachten, und die Seite fragt
+ * erst beim naechsten Knopfdruck wieder nach.
+ */
+export async function fuehreImportBereich(
+  bereich: Element,
+  abrufen: Abrufen,
+  { taktMs = FORTSCHRITT_TAKT_MS, warte = schlafe }: SeiteOptionen = {},
+): Promise<void> {
+  const zeige = (zustand: ImportZustand): void => {
+    zeichneImport(bereich, zustand, (name) => {
+      void (async () => {
+        zeige(await starteImport(abrufen, name));
+        await verfolge();
+      })();
+    });
+  };
+
+  const verfolge = async (): Promise<void> => {
+    let zustand = await holeImportZustand(abrufen);
+    zeige(zustand);
+
+    while (zustand.laufend !== undefined) {
+      await warte(taktMs);
+      zustand = await holeImportZustand(abrufen);
+      zeige(zustand);
+    }
+  };
+
+  zeige(IMPORT_UNBEKANNT);
+  await verfolge();
 }

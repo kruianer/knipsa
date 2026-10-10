@@ -9,11 +9,12 @@ function antwort(koerper: unknown, status = 200): Response {
   });
 }
 
-/** Stellt einen Server nach, der Umgebung und ready-Status liefert. */
+/** Stellt einen Server nach, der Umgebung, ready-Status und Import liefert. */
 function server(options: {
   umgebung?: string;
   ready?: { status: number; koerper: unknown };
   fehlerBei?: string;
+  import?: unknown;
 }): (url: string) => Promise<Response> {
   return (url) => {
     if (url === options.fehlerBei) {
@@ -25,6 +26,9 @@ function server(options: {
     if (url === '/health/ready') {
       const ready = options.ready ?? { status: 200, koerper: { datenbank: 'ok', fotos: 'ok' } };
       return Promise.resolve(antwort(ready.koerper, ready.status));
+    }
+    if (url === '/api/import') {
+      return Promise.resolve(antwort(options.import ?? { quellen: [], laeufe: [] }));
     }
     return Promise.resolve(new Response('', { status: 404 }));
   };
@@ -90,5 +94,21 @@ describe('starteSeite', () => {
     zeichneSeite(wurzel, zustand);
 
     expect(wurzel.querySelectorAll('h1')).toHaveLength(1);
+  });
+
+  it('haengt den Bereich Import mit den Quellen des Servers an', async () => {
+    await starteSeite(
+      document,
+      server({
+        import: {
+          quellen: [{ name: 'Test', verfuegbar: true }],
+          laeufe: [],
+        },
+      }),
+    );
+
+    const bereich = seite().querySelector('#import');
+    expect(bereich?.querySelector('h2')?.textContent).toBe('Import');
+    expect(bereich?.querySelector('.quelle-name')?.textContent).toBe('Test');
   });
 });

@@ -28,9 +28,15 @@ services:
       # nicht an 0.0.0.0. Kein Port am Router (siehe delivery/security.md).
       - '192.168.2.200:${KNIPSA_PORT}:3000'
     volumes:
-      # Foto-Baum aus FOTOS_ROOT, in req-001 nur lesend — es wird noch
-      # nichts geschrieben. Die NAS-Einbindung aendert spaeter nur FOTOS_ROOT.
-      - '${FOTOS_ROOT}:/fotos:ro'
+      # Foto-Baum aus FOTOS_ROOT, beschreibbar: der Import legt hier
+      # Fotos, Gesehen-Liste und Protokolle ab (req-005). Das Verzeichnis
+      # auf dem Host muss fuer uid 1000 (`node` im Container) schreibbar
+      # sein. Die NAS-Einbindung aendert spaeter nur FOTOS_ROOT.
+      - '${FOTOS_ROOT}:/fotos'
+      # Import-Quellen aus QUELLEN_ROOT, immer NUR LESEND: Quellen sind
+      # Fremdquellen, Knipsa veraendert dort nie etwas. Welche Ordner
+      # darunter als Quelle gelten, steht in IMPORT_QUELLEN (env-Datei).
+      - '${QUELLEN_ROOT}:/quellen:ro'
     depends_on:
       db:
         condition: service_healthy
