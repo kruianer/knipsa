@@ -21,7 +21,16 @@ export {
   type LaufenderImport,
   type LaufFunktion,
   type QuellenZustand,
+  type StartOptionen,
 } from './importdienst.js';
+export {
+  ordnerPfad,
+  pruefeOrdner,
+  UnbekannterOrdner,
+  zeigeOrdner,
+  type OrdnerAnsicht,
+  type OrdnerEintrag,
+} from './ordnerbaum.js';
 export {
   findeDatentraeger,
   groesseText,

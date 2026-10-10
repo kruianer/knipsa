@@ -30,6 +30,7 @@ import {
 
 import { GesehenListe, type GesehenEintrag } from './gesehen.js';
 import type { MetadatenLeser } from './metadaten.js';
+import { ordnerPfad, pruefeOrdner } from './ordnerbaum.js';
 import { legeProblemAb } from './problem.js';
 import { schreibeProtokoll } from './protokoll.js';
 import { raeumeTeileAuf } from './teilaufraeumen.js';
@@ -76,6 +77,11 @@ export interface ErgebnisEintrag {
 /** Das Ergebnis eines Laufs, so wie die Seite "Import" es zeigt. */
 export interface LaufErgebnis {
   readonly quelle: string;
+  /**
+   * Ordner in der Quelle, auf den der Lauf begrenzt war; fehlt bei einem
+   * Lauf ueber die ganze Quelle.
+   */
+  readonly ordner?: string;
   /** Beginn des Laufs, ISO-8601. */
   readonly begonnen: string;
   /** Ende des Laufs, ISO-8601. */
@@ -101,6 +107,11 @@ export interface LaufOptionen {
   /** Wurzel des Foto-Baums. */
   readonly wurzel: string;
   readonly quelle: Quelle;
+  /**
+   * Ordner in der Quelle, der importiert wird — samt Unterordnern. Ohne
+   * Angabe die ganze Quelle.
+   */
+  readonly ordner?: string;
   readonly leser: MetadatenLeser;
   /** Wird nach jeder Datei gerufen. */
   readonly melde?: (fortschritt: Fortschritt) => void;
@@ -231,6 +242,7 @@ function protokollName(quelle: string, jetzt: Date): string {
 export async function fuehreLaufAus({
   wurzel,
   quelle,
+  ordner = '',
   leser,
   melde,
   jetzt = () => new Date(),
@@ -242,7 +254,14 @@ export async function fuehreLaufAus({
   // eine liegengebliebene Kopie ins Archiv, oder sie wird verworfen.
   await raeumeTeileAuf(wurzel, gesehen);
 
-  const dateien = await sammleDateien(quelle.pfad);
+  // Ein gewaehlter Ordner wird geprueft, bevor daraus gelesen wird; die
+  // Pfade im Ergebnis bleiben relativ zur Quellwurzel.
+  const begrenzt = pruefeOrdner(ordner);
+  if (begrenzt !== '') {
+    await ordnerPfad(quelle.pfad, begrenzt);
+  }
+
+  const dateien = await sammleDateien(quelle.pfad, begrenzt);
   const gesamt = dateien.length;
 
   const ergebnisse = new Map<string, ErgebnisEintrag>();
@@ -386,6 +405,7 @@ export async function fuehreLaufAus({
 
   const ergebnis: LaufErgebnis = {
     quelle: quelle.name,
+    ...(begrenzt === '' ? {} : { ordner: begrenzt }),
     begonnen: begonnen.toISOString(),
     beendet: beendet.toISOString(),
     gesamt,

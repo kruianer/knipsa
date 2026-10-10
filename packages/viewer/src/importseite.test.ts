@@ -1,6 +1,17 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { fortschrittText, zeichneImport, type ImportZustand } from './importseite.js';
+import {
+  dateienText,
+  fortschrittText,
+  zeichneImport,
+  type ImportAktionen,
+  type ImportZustand,
+} from './importseite.js';
+
+/** Aktionen, von denen der Test nur die interessanten besetzt. */
+function aktionen(teile: Partial<ImportAktionen> = {}): ImportAktionen {
+  return { starte: () => {}, zeigeOrdner: () => {}, schliesseOrdner: () => {}, ...teile };
+}
 
 let bereich: HTMLElement;
 
@@ -26,7 +37,7 @@ describe('Quellen', () => {
           { name: 'Altbestand', verfuegbar: false },
         ],
       },
-      () => {},
+      aktionen(),
     );
 
     const zeilen = bereich.querySelectorAll('.quelle');
@@ -40,7 +51,11 @@ describe('Quellen', () => {
 
   it('meldet den Namen der Quelle beim Druck auf Importieren', () => {
     const starte = vi.fn();
-    zeichneImport(bereich, { ...leer, quellen: [{ name: 'Test', verfuegbar: true }] }, starte);
+    zeichneImport(
+      bereich,
+      { ...leer, quellen: [{ name: 'Test', verfuegbar: true }] },
+      aktionen({ starte }),
+    );
 
     bereich.querySelector<HTMLButtonElement>('.quelle-start')?.click();
 
@@ -48,7 +63,7 @@ describe('Quellen', () => {
   });
 
   it('sagt es, wenn keine Quelle eingestellt ist', () => {
-    zeichneImport(bereich, leer, () => {});
+    zeichneImport(bereich, leer, aktionen());
 
     expect(bereich.querySelector('.quellen-leer')?.textContent).toBe('Keine Quelle eingestellt');
   });
@@ -67,7 +82,7 @@ describe('Quellen', () => {
           },
         ],
       },
-      () => {},
+      aktionen(),
     );
 
     const zeile = bereich.querySelector<HTMLElement>('.quelle');
@@ -77,9 +92,151 @@ describe('Quellen', () => {
   });
 
   it('zeigt keine Bilder', () => {
-    zeichneImport(bereich, { ...leer, quellen: [{ name: 'Test', verfuegbar: true }] }, () => {});
+    zeichneImport(bereich, { ...leer, quellen: [{ name: 'Test', verfuegbar: true }] }, aktionen());
 
     expect(bereich.querySelectorAll('img')).toHaveLength(0);
+  });
+});
+
+describe('Ordner wählen', () => {
+  const karte = {
+    name: 'NIKON D750',
+    anzeige: 'NIKON D750 (64 GB)',
+    art: 'datentraeger',
+    verfuegbar: true,
+  };
+
+  const wahl = {
+    quelle: 'NIKON D750',
+    ordner: 'DCIM',
+    dateien: 3,
+    unterordner: [
+      { name: '100NIKON', pfad: 'DCIM/100NIKON', dateien: 2, weiter: false },
+      { name: '101NIKON', pfad: 'DCIM/101NIKON', dateien: 1, weiter: false },
+    ],
+  };
+
+  it('bietet bei einem Datentraeger "Ordner wählen …" an, bei einem Ordner nicht', () => {
+    zeichneImport(
+      bereich,
+      { ...leer, quellen: [karte, { name: 'Test', verfuegbar: true }] },
+      aktionen(),
+    );
+
+    const zeilen = bereich.querySelectorAll('.quelle');
+    expect(zeilen[0]?.querySelector('.quelle-ordner')?.textContent).toBe('Ordner wählen …');
+    expect(zeilen[1]?.querySelector('.quelle-ordner')).toBeNull();
+  });
+
+  it('fragt beim Druck darauf die Wurzel des Datentraegers ab', () => {
+    const zeigeOrdner = vi.fn();
+    zeichneImport(bereich, { ...leer, quellen: [karte] }, aktionen({ zeigeOrdner }));
+
+    bereich.querySelector<HTMLButtonElement>('.quelle-ordner')?.click();
+
+    expect(zeigeOrdner).toHaveBeenCalledWith('NIKON D750', '');
+  });
+
+  it('zeigt je Ordner den Namen und die Anzahl Dateien', () => {
+    zeichneImport(bereich, { ...leer, quellen: [karte], ordnerwahl: wahl }, aktionen());
+
+    const block = bereich.querySelector<HTMLElement>('.ordnerwahl');
+    expect(block?.dataset.ordner).toBe('DCIM');
+    expect(block?.querySelector('.ordnerwahl-pfad')?.textContent).toBe('NIKON D750 / DCIM');
+
+    const zeilen = bereich.querySelectorAll('.ordnerwahl-liste .ordner');
+    expect(zeilen).toHaveLength(2);
+    expect(zeilen[0]?.querySelector('.ordner-name')?.textContent).toBe('100NIKON');
+    expect(zeilen[0]?.querySelector('.ordner-dateien')?.textContent).toBe('2 Dateien');
+    expect(zeilen[1]?.querySelector('.ordner-dateien')?.textContent).toBe('1 Datei');
+  });
+
+  it('startet mit "Diesen Ordner importieren" den Lauf fuer diesen Ordner', () => {
+    const starte = vi.fn();
+    zeichneImport(bereich, { ...leer, quellen: [karte], ordnerwahl: wahl }, aktionen({ starte }));
+
+    bereich.querySelectorAll<HTMLButtonElement>('.ordnerwahl-liste .ordner-start')[1]?.click();
+
+    expect(starte).toHaveBeenCalledWith('NIKON D750', 'DCIM/101NIKON');
+  });
+
+  it('oeffnet die naechste Ebene nur dort, wo es weitere Ordner gibt', () => {
+    const zeigeOrdner = vi.fn();
+    zeichneImport(
+      bereich,
+      {
+        ...leer,
+        quellen: [karte],
+        ordnerwahl: {
+          ...wahl,
+          ordner: '',
+          unterordner: [{ name: 'DCIM', pfad: 'DCIM', dateien: 3, weiter: true }],
+        },
+      },
+      aktionen({ zeigeOrdner }),
+    );
+
+    const knopf = bereich.querySelector<HTMLButtonElement>('.ordner-oeffnen');
+    expect(knopf?.disabled).toBe(false);
+    knopf?.click();
+    expect(zeigeOrdner).toHaveBeenCalledWith('NIKON D750', 'DCIM');
+
+    zeichneImport(
+      bereich,
+      { ...leer, quellen: [karte], ordnerwahl: wahl },
+      aktionen({ zeigeOrdner }),
+    );
+    expect(bereich.querySelector<HTMLButtonElement>('.ordner-oeffnen')?.disabled).toBe(true);
+  });
+
+  it('geht eine Ebene hoeher und schliesst die Auswahl wieder', () => {
+    const zeigeOrdner = vi.fn();
+    const schliesseOrdner = vi.fn();
+    zeichneImport(
+      bereich,
+      { ...leer, quellen: [karte], ordnerwahl: { ...wahl, ordner: 'DCIM/101NIKON' } },
+      aktionen({ zeigeOrdner, schliesseOrdner }),
+    );
+
+    bereich.querySelector<HTMLButtonElement>('.ordnerwahl-hoch')?.click();
+    bereich.querySelector<HTMLButtonElement>('.ordnerwahl-zu')?.click();
+
+    expect(zeigeOrdner).toHaveBeenCalledWith('NIKON D750', 'DCIM');
+    expect(schliesseOrdner).toHaveBeenCalledWith();
+  });
+
+  it('sagt es, wenn es keine weiteren Ordner gibt', () => {
+    zeichneImport(
+      bereich,
+      { ...leer, quellen: [karte], ordnerwahl: { ...wahl, unterordner: [] } },
+      aktionen(),
+    );
+
+    expect(bereich.querySelector('.ordnerwahl-leer')?.textContent).toBe('Keine weiteren Ordner');
+  });
+
+  it('zeigt die Meldung des Servers, wenn die Ordner nicht zu lesen waren', () => {
+    zeichneImport(
+      bereich,
+      {
+        ...leer,
+        quellen: [karte],
+        ordnerwahl: { ...wahl, unterordner: [], meldung: 'Server nicht erreichbar' },
+      },
+      aktionen(),
+    );
+
+    expect(bereich.querySelector('.ordnerwahl-meldung')?.textContent).toBe(
+      'Server nicht erreichbar',
+    );
+  });
+});
+
+describe('dateienText', () => {
+  it('nennt die Einzahl in der Einzahl', () => {
+    expect(dateienText(0)).toBe('0 Dateien');
+    expect(dateienText(1)).toBe('1 Datei');
+    expect(dateienText(2)).toBe('2 Dateien');
   });
 });
 
@@ -103,7 +260,7 @@ describe('Fortschritt', () => {
         quellen: [{ name: 'Test', verfuegbar: true }],
         laufend: { quelle: 'Test', begonnen: '2026-10-10T08:00:00.000Z', erledigt: 7, gesamt: 42 },
       },
-      () => {},
+      aktionen(),
     );
 
     expect(bereich.querySelector('.import-fortschritt')?.textContent).toBe(
@@ -128,7 +285,7 @@ describe('Ergebnis', () => {
       protokoll: `protokoll/import/lauf-${stelle + 1}.log`,
     }));
 
-    zeichneImport(bereich, { ...leer, laeufe }, () => {});
+    zeichneImport(bereich, { ...leer, laeufe }, aktionen());
 
     const bloecke = bereich.querySelectorAll<HTMLElement>('.lauf');
     expect(bloecke).toHaveLength(10);
@@ -178,7 +335,7 @@ describe('Ergebnis', () => {
           },
         ],
       },
-      () => {},
+      aktionen(),
     );
 
     const lauf = bereich.querySelector('.lauf');

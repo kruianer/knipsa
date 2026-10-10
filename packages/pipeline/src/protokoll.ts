@@ -28,6 +28,7 @@ function zeileZu(eintrag: ErgebnisEintrag): string {
 export function protokollText(ergebnis: LaufErgebnis): string {
   const kopf = [
     `Quelle:        ${ergebnis.quelle}`,
+    ...(ergebnis.ordner === undefined ? [] : [`Ordner:        ${ergebnis.ordner}`]),
     `Begonnen:      ${ergebnis.begonnen}`,
     `Beendet:       ${ergebnis.beendet}`,
     `Dateien:       ${ergebnis.gesamt}`,

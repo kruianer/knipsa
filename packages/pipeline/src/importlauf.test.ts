@@ -424,6 +424,57 @@ describe('schon bekannte Dateien', () => {
   });
 });
 
+describe('einen Ordner der Quelle importieren', () => {
+  /** Eine Karte mit zwei Kamera-Ordnern. */
+  beforeEach(async () => {
+    await schreibeDatei(
+      join(quelle.pfad, 'DCIM', '100NIKON', 'DSC_0001.NEF'),
+      nefBytes({ datum: '2019:06:14 10:15:00' }),
+    );
+    await schreibeDatei(
+      join(quelle.pfad, 'DCIM', '101NIKON', 'DSC_0002.NEF'),
+      nefBytes({ datum: '2019:06:14 10:16:00' }),
+    );
+  });
+
+  it('sammelt nur die Dateien des gewaehlten Ordners', async () => {
+    const dateien = await sammleDateien(quelle.pfad, 'DCIM/101NIKON');
+
+    expect(dateien.map((datei) => datei.quellPfad)).toEqual(['DCIM/101NIKON/DSC_0002.NEF']);
+  });
+
+  it('nimmt ins Ergebnis nur Dateien aus diesem Ordner', async () => {
+    const ergebnis = await fuehreLaufAus({ wurzel, quelle, ordner: 'DCIM/101NIKON', leser });
+
+    expect(ergebnis.ordner).toBe('DCIM/101NIKON');
+    expect(ergebnis.gesamt).toBe(1);
+    expect(ergebnis.neu).toBe(1);
+    expect(ergebnis.dateien.map((eintrag) => eintrag.quellPfad)).toEqual([
+      'DCIM/101NIKON/DSC_0002.NEF',
+    ]);
+  });
+
+  it('vermerkt den Ordner im Protokoll', async () => {
+    const ergebnis = await fuehreLaufAus({ wurzel, quelle, ordner: 'DCIM/101NIKON', leser });
+
+    const protokoll = await readFile(join(wurzel, ergebnis.protokoll), 'utf8');
+    expect(protokoll).toContain('Ordner:        DCIM/101NIKON');
+  });
+
+  it('laesst den Lauf ueber die ganze Quelle ohne Ordner-Angabe', async () => {
+    const ergebnis = await lauf();
+
+    expect(ergebnis.ordner).toBeUndefined();
+    expect(ergebnis.gesamt).toBe(2);
+  });
+
+  it('wirft fuer einen Ordner, den es in der Quelle nicht gibt', async () => {
+    await expect(fuehreLaufAus({ wurzel, quelle, ordner: 'DCIM/999NIKON', leser })).rejects.toThrow(
+      'Ordner nicht bekannt',
+    );
+  });
+});
+
 describe('die Quelle bleibt unangetastet', () => {
   /** Jede Datei der Quelle mit Groesse, Pruefsumme und Aenderungszeit. */
   async function abbild(ordner: string): Promise<Record<string, string>> {

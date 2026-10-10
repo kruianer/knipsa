@@ -48,7 +48,7 @@ Problemfälle, Übersprungenes und Ergebnis gelten unverändert wie dort.
   neu lade.
 - [x] Given die Karte steht in der Liste, when ich sie herausziehe, then
   verschwindet sie binnen 10 Sekunden aus der Liste.
-- [ ] Given die Karte enthält `DCIM/100NIKON` und `DCIM/101NIKON`, when
+- [x] Given die Karte enthält `DCIM/100NIKON` und `DCIM/101NIKON`, when
   ich über "Ordner wählen …" `DCIM/101NIKON` importiere, then enthält das
   Ergebnis nur Dateien aus `DCIM/101NIKON`.
 - [ ] Given ein Import mit 200 Dateien läuft, when ich nach etwa 50

@@ -1,4 +1,4 @@
-import { mkdtemp } from 'node:fs/promises';
+import { mkdir, mkdtemp, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -321,6 +321,63 @@ describe('eingesteckte Datentraeger als Quelle', () => {
     await dienst.arbeit();
 
     expect(arten).toEqual(['ordner', 'datentraeger']);
+  });
+
+  it('zeigt die Ordner der Karte Ebene fuer Ebene', async () => {
+    await mkdir(join(zweite, 'DCIM', '101NIKON'), { recursive: true });
+    await writeFile(join(zweite, 'DCIM', '101NIKON', 'DSC_0003.NEF'), 'drei');
+    const dienst = dienstMitKarte(() => [karte()]);
+
+    expect(await dienst.ordner('NIKON D750')).toEqual({
+      ordner: '',
+      dateien: 1,
+      unterordner: [{ name: 'DCIM', pfad: 'DCIM', dateien: 1, weiter: true }],
+    });
+    expect((await dienst.ordner('NIKON D750', 'DCIM')).unterordner).toEqual([
+      { name: '101NIKON', pfad: 'DCIM/101NIKON', dateien: 1, weiter: false },
+    ]);
+  });
+
+  it('startet einen Lauf nur fuer den gewaehlten Ordner', async () => {
+    await mkdir(join(zweite, 'DCIM', '101NIKON'), { recursive: true });
+    const auftraege: { quelle: string; ordner: string }[] = [];
+    const dienst = new ImportDienst({
+      wurzel,
+      quellen: [],
+      datentraeger: () => Promise.resolve([karte()]),
+      lauf: ({ quelle, ordner }) => {
+        auftraege.push({ quelle: quelle.name, ordner });
+        return Promise.resolve({ ...ergebnis(quelle.name), ordner });
+      },
+      leser: stubLeser,
+    });
+
+    await dienst.starte('NIKON D750', { ordner: 'DCIM/101NIKON' });
+    expect((await dienst.zustand()).laufend?.ordner).toBe('DCIM/101NIKON');
+    await dienst.arbeit();
+
+    expect(auftraege).toEqual([{ quelle: 'NIKON D750', ordner: 'DCIM/101NIKON' }]);
+    expect((await dienst.zustand()).laeufe[0]?.ordner).toBe('DCIM/101NIKON');
+  });
+
+  it('startet nichts fuer einen Ordner, den es nicht gibt', async () => {
+    const { lauf, aufrufe } = haltenderLauf();
+    const dienst = new ImportDienst({
+      wurzel,
+      quellen: [],
+      datentraeger: () => Promise.resolve([karte()]),
+      lauf,
+      leser: stubLeser,
+    });
+
+    await expect(dienst.starte('NIKON D750', { ordner: 'DCIM/999NIKON' })).rejects.toThrow(
+      'Ordner nicht bekannt',
+    );
+    await expect(dienst.ordner('NIKON D750', '../woanders')).rejects.toThrow(
+      'Ordner nicht bekannt',
+    );
+    expect(aufrufe()).toBe(0);
+    expect((await dienst.zustand()).laufend).toBeUndefined();
   });
 
   it('ohne eingestellten Ordner fuer Datentraeger gibt es keine', async () => {

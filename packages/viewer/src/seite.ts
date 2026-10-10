@@ -1,5 +1,10 @@
-import { holeImportZustand, starteImport } from './importdaten.js';
-import { IMPORT_UNBEKANNT, zeichneImport, type ImportZustand } from './importseite.js';
+import { holeImportZustand, holeOrdner, starteImport } from './importdaten.js';
+import {
+  IMPORT_UNBEKANNT,
+  zeichneImport,
+  type ImportZustand,
+  type OrdnerWahl,
+} from './importseite.js';
 import { ampelFarbe, ampelText, holeZustand, UMGEBUNG_UNBEKANNT, type Zustand } from './zustand.js';
 
 /** Zeichnet den Kopf der Seite: Titel, Umgebung und Ampel. */
@@ -107,16 +112,37 @@ export async function fuehreImportBereich(
   // Fortschritts dazwischen duerfen sie nicht wegwischen.
   let meldung: string | undefined;
   let letzter: ImportZustand = IMPORT_UNBEKANNT;
+  // Die offene Ordner-Auswahl gehoert zur Bedienung, nicht zum Zustand
+  // des Servers: sie bleibt ueber die Abfragen hinweg stehen.
+  let ordnerwahl: OrdnerWahl | undefined;
 
   const zeige = (zustand: ImportZustand): void => {
     letzter = zustand;
-    zeichneImport(bereich, meldung === undefined ? zustand : { ...zustand, meldung }, (name) => {
-      void (async () => {
-        const nachher = await starteImport(abrufen, name);
-        meldung = nachher.meldung;
-        zeige(nachher);
-      })();
-    });
+    zeichneImport(
+      bereich,
+      { ...zustand, meldung, ordnerwahl },
+      {
+        starte: (name, ordner) => {
+          void (async () => {
+            const nachher = await starteImport(abrufen, name, ordner);
+            meldung = nachher.meldung;
+            // Nach dem Start ist die Auswahl erledigt.
+            ordnerwahl = undefined;
+            zeige(nachher);
+          })();
+        },
+        zeigeOrdner: (name, ordner) => {
+          void (async () => {
+            ordnerwahl = await holeOrdner(abrufen, name, ordner);
+            zeige(letzter);
+          })();
+        },
+        schliesseOrdner: () => {
+          ordnerwahl = undefined;
+          zeige(letzter);
+        },
+      },
+    );
   };
 
   zeige(IMPORT_UNBEKANNT);

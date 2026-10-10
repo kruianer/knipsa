@@ -1,4 +1,4 @@
-import { mkdtemp } from 'node:fs/promises';
+import { mkdir, mkdtemp, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -92,6 +92,45 @@ describe('GET /api/import', () => {
   });
 });
 
+describe('GET /api/import/ordner', () => {
+  it('nennt je Ordner den Namen und die Anzahl Dateien', async () => {
+    await mkdir(join(quellenPfad, 'DCIM', '101NIKON'), { recursive: true });
+    await writeFile(join(quellenPfad, 'DCIM', '101NIKON', 'DSC_0003.NEF'), 'drei');
+    const { app: server } = starte();
+
+    const antwort = await server.inject({
+      method: 'GET',
+      url: '/api/import/ordner?quelle=Test&ordner=DCIM',
+    });
+
+    expect(antwort.statusCode).toBe(200);
+    expect(antwort.json()).toEqual({
+      quelle: 'Test',
+      ordner: 'DCIM',
+      dateien: 1,
+      unterordner: [{ name: '101NIKON', pfad: 'DCIM/101NIKON', dateien: 1, weiter: false }],
+    });
+    expect(antwort.headers['cache-control']).toBe('no-store');
+  });
+
+  it('antwortet 404 fuer eine unbekannte Quelle oder einen unbekannten Ordner', async () => {
+    const { app: server } = starte();
+
+    const quelle = await server.inject({
+      method: 'GET',
+      url: '/api/import/ordner?quelle=Gibt-es-nicht',
+    });
+    const ordner = await server.inject({
+      method: 'GET',
+      url: '/api/import/ordner?quelle=Test&ordner=../woanders',
+    });
+
+    expect(quelle.statusCode).toBe(404);
+    expect(ordner.statusCode).toBe(404);
+    expect(ordner.json().fehler).toBe('Ordner nicht bekannt');
+  });
+});
+
 describe('POST /api/import/start', () => {
   it('startet den Lauf und meldet ihn danach als Ergebnis', async () => {
     const { app: server, dienst } = starte();
@@ -170,6 +209,47 @@ describe('POST /api/import/start', () => {
 
     weiter();
     await dienst.arbeit();
+  });
+
+  it('startet einen Lauf nur fuer den gewaehlten Ordner', async () => {
+    await mkdir(join(quellenPfad, 'DCIM', '101NIKON'), { recursive: true });
+    const auftraege: string[] = [];
+    const dienst = new ImportDienst({
+      wurzel,
+      quellen: [{ name: 'Test', pfad: quellenPfad }],
+      lauf: ({ quelle, ordner }) => {
+        auftraege.push(ordner);
+        return Promise.resolve({ ...ergebnis(quelle.name), ordner });
+      },
+      leser: () => ({
+        leseAufnahmezeit: () => Promise.resolve({ art: 'keineZeit' as const }),
+        schliesse: () => Promise.resolve(),
+      }),
+    });
+    const { app: server } = starte(dienst);
+
+    const antwort = await server.inject({
+      method: 'POST',
+      url: '/api/import/start',
+      payload: { quelle: 'Test', ordner: 'DCIM/101NIKON' },
+    });
+    await dienst.arbeit();
+
+    expect(antwort.statusCode).toBe(202);
+    expect(auftraege).toEqual(['DCIM/101NIKON']);
+  });
+
+  it('antwortet 404 fuer einen Ordner, den es nicht gibt', async () => {
+    const { app: server } = starte();
+
+    const antwort = await server.inject({
+      method: 'POST',
+      url: '/api/import/start',
+      payload: { quelle: 'Test', ordner: 'DCIM/999NIKON' },
+    });
+
+    expect(antwort.statusCode).toBe(404);
+    expect(antwort.json().fehler).toBe('Ordner nicht bekannt');
   });
 
   it('antwortet 409, wenn die Quelle nicht verfuegbar ist', async () => {

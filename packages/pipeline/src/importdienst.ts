@@ -26,6 +26,7 @@ import {
 } from './importlauf.js';
 import { ladeLaeufe, merkeLauf } from './laeufe.js';
 import { exiftoolLeser, type MetadatenLeser } from './metadaten.js';
+import { ordnerPfad, pruefeOrdner, zeigeOrdner, type OrdnerAnsicht } from './ordnerbaum.js';
 
 /** Eine Quelle, wie die Seite sie zeigt. */
 export interface QuellenZustand {
@@ -39,6 +40,8 @@ export interface QuellenZustand {
 /** Der laufende Import. */
 export interface LaufenderImport {
   readonly quelle: string;
+  /** Ordner, auf den der Lauf begrenzt ist; fehlt bei der ganzen Quelle. */
+  readonly ordner?: string;
   readonly begonnen: string;
   readonly erledigt: number;
   readonly gesamt: number;
@@ -79,9 +82,18 @@ export class QuelleNichtVerfuegbar extends Error {
 export type LaufFunktion = (auftrag: {
   readonly wurzel: string;
   readonly quelle: Quelle;
+  readonly ordner: string;
   readonly leser: MetadatenLeser;
   readonly melde: (fortschritt: Fortschritt) => void;
 }) => Promise<LaufErgebnis>;
+
+/** Angaben zum Start eines Laufs. */
+export interface StartOptionen {
+  /** Ordner in der Quelle samt Unterordnern; ohne Angabe die ganze Quelle. */
+  readonly ordner?: string;
+  /** Uhr; in Tests festgehalten. */
+  readonly jetzt?: () => Date;
+}
 
 /** Eine Quelle samt ihrer Beschriftung auf der Seite. */
 interface AngeboteneQuelle extends Quelle {
@@ -187,15 +199,8 @@ export class ImportDienst {
     return { quellen, laufend: this.#laufend, laeufe: await ladeLaeufe(this.#wurzel) };
   }
 
-  /**
-   * Startet einen Lauf. Kehrt sofort zurueck — der Lauf arbeitet im
-   * Hintergrund weiter, die Seite fragt den Fortschritt ab.
-   */
-  async starte(name: string, jetzt: () => Date = () => new Date()): Promise<void> {
-    if (this.#laufend !== undefined) {
-      throw new ImportLaeuftBereits();
-    }
-
+  /** Die Quelle mit diesem Namen, erreichbar und bereit fuer einen Lauf. */
+  async #bereiteQuelle(name: string): Promise<AngeboteneQuelle> {
     const quelle = (await this.#alleQuellen()).find((eintrag) => eintrag.name === name);
     if (quelle === undefined) {
       throw new UnbekannteQuelle(name);
@@ -204,22 +209,58 @@ export class ImportDienst {
       throw new QuelleNichtVerfuegbar(name);
     }
 
+    return quelle;
+  }
+
+  /**
+   * Eine Ebene der Ordner-Auswahl einer Quelle: die Ordner darin, je mit
+   * Name und Anzahl Dateien.
+   */
+  async ordner(name: string, ordner = ''): Promise<OrdnerAnsicht> {
+    const quelle = await this.#bereiteQuelle(name);
+    return zeigeOrdner(quelle.pfad, ordner);
+  }
+
+  /**
+   * Startet einen Lauf. Kehrt sofort zurueck — der Lauf arbeitet im
+   * Hintergrund weiter, die Seite fragt den Fortschritt ab. Mit `ordner`
+   * umfasst der Lauf nur diesen Ordner samt Unterordnern.
+   */
+  async starte(
+    name: string,
+    { ordner = '', jetzt = () => new Date() }: StartOptionen = {},
+  ): Promise<void> {
+    if (this.#laufend !== undefined) {
+      throw new ImportLaeuftBereits();
+    }
+
+    const quelle = await this.#bereiteQuelle(name);
+
+    // Ein Ordner, den es in der Quelle nicht gibt, soll den Lauf nicht
+    // erst im Hintergrund scheitern lassen.
+    const begrenzt = pruefeOrdner(ordner);
+    if (begrenzt !== '') {
+      await ordnerPfad(quelle.pfad, begrenzt);
+    }
+
     this.#laufend = {
       quelle: quelle.name,
+      ...(begrenzt === '' ? {} : { ordner: begrenzt }),
       begonnen: jetzt().toISOString(),
       erledigt: 0,
       gesamt: 0,
     };
 
-    this.#arbeit = this.#arbeite(quelle);
+    this.#arbeit = this.#arbeite(quelle, begrenzt);
   }
 
-  async #arbeite(quelle: Quelle): Promise<void> {
+  async #arbeite(quelle: Quelle, ordner: string): Promise<void> {
     const leser = this.#leser();
     try {
       const ergebnis = await this.#lauf({
         wurzel: this.#wurzel,
         quelle,
+        ordner,
         leser,
         melde: (fortschritt) => {
           if (this.#laufend !== undefined) {

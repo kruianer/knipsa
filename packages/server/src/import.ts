@@ -2,7 +2,9 @@
  * Routen der Seite "Import".
  *
  * - `GET  /api/import` — Quellen, laufender Import, letzte Laeufe.
- * - `POST /api/import/start` — startet einen Lauf fuer eine Quelle.
+ * - `GET  /api/import/ordner` — die Ordner einer Quelle, Ebene fuer Ebene.
+ * - `POST /api/import/start` — startet einen Lauf fuer eine Quelle,
+ *   wahlweise begrenzt auf einen Ordner darin.
  *
  * Die Antworten enthalten Pfade innerhalb der Quelle und Schluessel,
  * aber nie Bilder und nie den Pfad der Foto-Wurzel.
@@ -14,11 +16,23 @@ import {
   ImportLaeuftBereits,
   QuelleNichtVerfuegbar,
   UnbekannteQuelle,
+  UnbekannterOrdner,
   type ImportDienst,
 } from '@knipsa/pipeline';
 
 interface StartAnfrage {
   readonly quelle?: unknown;
+  readonly ordner?: unknown;
+}
+
+interface OrdnerAnfrage {
+  readonly quelle?: unknown;
+  readonly ordner?: unknown;
+}
+
+/** Nimmt nur Text an; alles andere gilt als nicht angegeben. */
+function text(wert: unknown): string {
+  return typeof wert === 'string' ? wert : '';
 }
 
 /** Registriert die Import-Routen. */
@@ -27,12 +41,26 @@ export function registriereImportRouten(app: FastifyInstance, dienst: ImportDien
     return antwort.header('cache-control', 'no-store').send(await dienst.zustand());
   });
 
-  app.post('/api/import/start', async (anfrage, antwort) => {
-    const koerper = (anfrage.body ?? {}) as StartAnfrage;
-    const quelle = typeof koerper.quelle === 'string' ? koerper.quelle : '';
+  app.get('/api/import/ordner', async (anfrage, antwort) => {
+    const frage = (anfrage.query ?? {}) as OrdnerAnfrage;
+    const quelle = text(frage.quelle);
 
     try {
-      await dienst.starte(quelle);
+      const ansicht = await dienst.ordner(quelle, text(frage.ordner));
+      return antwort.header('cache-control', 'no-store').send({ quelle, ...ansicht });
+    } catch (fehler) {
+      return antwort
+        .code(statusZu(fehler))
+        .header('cache-control', 'no-store')
+        .send({ fehler: (fehler as Error).message });
+    }
+  });
+
+  app.post('/api/import/start', async (anfrage, antwort) => {
+    const koerper = (anfrage.body ?? {}) as StartAnfrage;
+
+    try {
+      await dienst.starte(text(koerper.quelle), { ordner: text(koerper.ordner) });
     } catch (fehler) {
       return antwort
         .code(statusZu(fehler))
@@ -48,15 +76,15 @@ export function registriereImportRouten(app: FastifyInstance, dienst: ImportDien
 }
 
 /**
- * `409` wenn schon ein Lauf laeuft, `404` fuer eine unbekannte Quelle,
- * `409` fuer eine nicht erreichbare — alles Faelle, die die Seite dem
- * Nutzer im Klartext zeigt.
+ * `409` wenn schon ein Lauf laeuft, `404` fuer eine unbekannte Quelle
+ * oder einen unbekannten Ordner, `409` fuer eine nicht erreichbare
+ * Quelle — alles Faelle, die die Seite dem Nutzer im Klartext zeigt.
  */
 function statusZu(fehler: unknown): number {
   if (fehler instanceof ImportLaeuftBereits || fehler instanceof QuelleNichtVerfuegbar) {
     return 409;
   }
-  if (fehler instanceof UnbekannteQuelle) {
+  if (fehler instanceof UnbekannteQuelle || fehler instanceof UnbekannterOrdner) {
     return 404;
   }
 
