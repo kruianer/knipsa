@@ -1,11 +1,16 @@
-import { mkdtemp, readdir, readFile, rm } from 'node:fs/promises';
+import { mkdtemp, readdir, readFile, rm, stat } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import { existiert, pruefsumme, type QuellenEinstellung } from '@knipsa/shared';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 
-import { fuehreLaufAus, type ErgebnisEintrag, type LaufErgebnis } from './importlauf.js';
+import {
+  fuehreLaufAus,
+  sammleDateien,
+  type ErgebnisEintrag,
+  type LaufErgebnis,
+} from './importlauf.js';
 import { exiftoolLeser, type MetadatenLeser } from './metadaten.js';
 import {
   jpegBytes,
@@ -415,6 +420,60 @@ describe('schon bekannte Dateien', () => {
       '20190614-101500a.xmp',
       '20190614-101502a.NEF',
     ]);
+  });
+});
+
+describe('die Quelle bleibt unangetastet', () => {
+  /** Jede Datei der Quelle mit Groesse, Pruefsumme und Aenderungszeit. */
+  async function abbild(ordner: string): Promise<Record<string, string>> {
+    const abzug: Record<string, string> = {};
+    for (const datei of await sammleDateien(ordner)) {
+      const angaben = await stat(datei.pfad);
+      abzug[datei.quellPfad] = `${angaben.size} ${angaben.mtimeMs} ${await pruefsumme(datei.pfad)}`;
+    }
+    return abzug;
+  }
+
+  /** Eine Quelle mit allen Faellen: neu, Sidecar, uebersprungen, Problem. */
+  async function bunteQuelle(): Promise<void> {
+    const ordner = join(quelle.pfad, 'Toskana 2019');
+    await schreibeDatei(join(ordner, 'DSC_0412.NEF'), nefBytes({ datum: '2019:06:14 10:15:00' }));
+    await schreibeDatei(join(ordner, 'DSC_0412.xmp'), xmpText(4));
+    await schreibeDatei(join(ordner, 'DSC_0413.NEF'), nefBytes({ datum: '2019:06:14 10:15:02' }));
+    await schreibeDatei(join(ordner, 'DSC_0413.JPG'), jpegBytes({ datum: '2019:06:14 10:15:02' }));
+    await schreibeDatei(join(ordner, 'DSC_0500.xmp'), xmpText(1));
+    await schreibeDatei(join(ordner, 'IMG_0001.MOV'), 'kein Foto');
+    await schreibeDatei(join(ordner, 'ohne-zeit.jpg'), jpegBytes());
+    await schreibeDatei(join(ordner, 'notizen.txt'), 'Text');
+  }
+
+  it('loescht, benennt und veraendert dort nichts', async () => {
+    await bunteQuelle();
+    const vorher = await abbild(quelle.pfad);
+
+    const ergebnis = await lauf();
+
+    expect(ergebnis.neu).toBeGreaterThan(0);
+    expect(await abbild(quelle.pfad)).toEqual(vorher);
+  });
+
+  it('laesst sie auch beim zweiten Lauf unveraendert', async () => {
+    await bunteQuelle();
+    await lauf();
+    const vorher = await abbild(quelle.pfad);
+
+    await lauf();
+
+    expect(await abbild(quelle.pfad)).toEqual(vorher);
+  });
+
+  it('legt in der Quelle auch nichts Neues an', async () => {
+    await bunteQuelle();
+    const vorher = Object.keys(await abbild(quelle.pfad));
+
+    await lauf();
+
+    expect(Object.keys(await abbild(quelle.pfad))).toEqual(vorher);
   });
 });
 

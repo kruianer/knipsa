@@ -92,7 +92,7 @@ Quelle bleibt dabei unangetastet.
   danach erneut importiere, then sind alle Fotos genau einmal mit je einem
   Schlüssel im Ergebnis, und keine halb kopierte Datei liegt im
   Wartebereich.
-- [ ] Given ein Import ist fertig, when ich die Quelle ansehe, then ist
+- [x] Given ein Import ist fertig, when ich die Quelle ansehe, then ist
   dort KEINE Datei gelöscht, umbenannt oder verändert.
 - [ ] Given es gab 11 Läufe, when ich die Seite öffne, then sehe ich
   genau die 10 neuesten.
