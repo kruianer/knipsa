@@ -32,6 +32,7 @@ Getrennte Umgebungen auf demselben Host:
 | Foto-Baum (aktuell) | `/home/kruianer/knipsa-fotos/dev` (lokal, leer) | `/home/kruianer/knipsa-fotos/prod-platzhalter` (lokal, leer) |
 | Foto-Baum (Ziel) | Test-Baum auf dem NAS `<TODO: Mountpunkt nach NAS-Einbindung>` | echter Baum auf dem NAS `<TODO: Mountpunkt nach NAS-Einbindung>` |
 | Runner | `beelink-knipsa` (`runs-on: [self-hosted, knipsa]`), `~/actions-runner-knipsa` | dto. |
+| Import-Quellen (req-005) | `Test` = `/home/kruianer/knipsa-quellen/test` (nur lesend einbinden) | noch keine |
 | Gesehen-Liste | im Test-Baum | im echten Baum (wird gesichert) |
 
 - dev arbeitet NIE auf dem echten Foto-Baum, auch nicht lesend. Der
