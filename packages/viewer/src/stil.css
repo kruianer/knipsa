@@ -57,6 +57,11 @@ main {
 
 .quelle {
   display: flex;
+  /* Umbruch ist Pflicht, nicht Geschmack: auf dem iPhone ist die Zeile
+     schmaler als Name, Zustand und Knoepfe zusammen. Ohne Umbruch
+     schiebt sich der letzte Knopf ("Ordner wählen …") aus dem Bild —
+     er war dort nicht zu sehen und nicht zu druecken (bug-001). */
+  flex-wrap: wrap;
   align-items: center;
   gap: 0.75rem;
   padding: 0.35rem 0;
@@ -64,7 +69,9 @@ main {
 
 .quelle-name {
   font-weight: 600;
-  min-width: 12rem;
+  /* Die 12rem richten die Quellen auf dem Laptop untereinander aus;
+     auf einem schmaleren Bildschirm darf der Name sie nicht erzwingen. */
+  min-width: min(12rem, 100%);
 }
 
 .quelle-zustand {
