@@ -25,6 +25,13 @@ Sprachen, Frameworks, Kommandos, Konventionen und das Glossar stehen in
 [delivery/stack.md](delivery/stack.md). Befolge sie exakt. Datei noch
 nicht vorhanden? Lege sie mit dem Skill `setup-stack` an.
 
+## Security
+
+Die Sicherheits-Vorgaben für dieses Projekt (Erreichbarkeit, HTTPS,
+Zugriffskreis, Backup, Datenschutz) sind in
+[delivery/security.md](delivery/security.md) definiert. Der Security-Task
+(req-014) prüft dagegen.
+
 ## Ideen
 
 Der Worker schlägt einmal pro Tag genau eine neue Idee für dieses Repo
@@ -41,5 +48,6 @@ Geschäftsfunktions-Bereiche der App, zur Einordnung von Requirements.
 Ein Requirement gehört in genau eine Area. Neue Areas werden hier
 ergänzt.
 
-- Noch keine Area definiert — die erste entsteht mit dem ersten
-  Requirement.
+- **Betrieb** — Repo-Gerüst, Container, Deploy, Tunnel, Health.
+- **Zugang** — Anmeldung, Geräte, Sitzungen, Wiederherstellung,
+  Mandanten, Nutzer und Gastzugänge.
