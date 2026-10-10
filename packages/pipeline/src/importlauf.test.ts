@@ -798,17 +798,70 @@ describe('Abbrechen mitten im Lauf', () => {
   });
 });
 
-describe('die Quelle bleibt unangetastet', () => {
-  /** Jede Datei der Quelle mit Groesse, Pruefsumme und Aenderungszeit. */
-  async function abbild(ordner: string): Promise<Record<string, string>> {
-    const abzug: Record<string, string> = {};
-    for (const datei of await sammleDateien(ordner)) {
-      const angaben = await stat(datei.pfad);
-      abzug[datei.quellPfad] = `${angaben.size} ${angaben.mtimeMs} ${await pruefsumme(datei.pfad)}`;
-    }
-    return abzug;
+/** Jede Datei der Quelle mit Groesse, Pruefsumme und Aenderungszeit. */
+async function abbild(ordner: string): Promise<Record<string, string>> {
+  const abzug: Record<string, string> = {};
+  for (const datei of await sammleDateien(ordner)) {
+    const angaben = await stat(datei.pfad);
+    abzug[datei.quellPfad] = `${angaben.size} ${angaben.mtimeMs} ${await pruefsumme(datei.pfad)}`;
   }
+  return abzug;
+}
 
+describe('der Datentraeger bleibt unangetastet', () => {
+  it('veraendert bei einem Lauf ueber die ganze Karte nichts darauf', async () => {
+    const eigenerLeser = await vieleFotos(10, { ohneZeit: [2] });
+    const vorher = await abbild(quelle.pfad);
+
+    const ergebnis = await fuehreLaufAus({
+      wurzel,
+      quelle: { ...quelle, name: 'NIKON D750', art: 'datentraeger' },
+      leser: eigenerLeser,
+    });
+
+    expect(ergebnis.neu).toBeGreaterThan(0);
+    expect(ergebnis.problem).toBe(1);
+    // Nichts geloescht, nichts umbenannt, nichts veraendert, nichts
+    // Neues angelegt.
+    expect(await abbild(quelle.pfad)).toEqual(vorher);
+  });
+
+  it('veraendert bei einem Ordner-Lauf nichts darauf', async () => {
+    const eigenerLeser = await vieleFotos(3, { ordner: 'DCIM/101NIKON' });
+    await schreibeDatei(join(quelle.pfad, 'DCIM', '100NIKON', 'DSC_9999.NEF'), 'anderes Foto');
+    const vorher = await abbild(quelle.pfad);
+
+    await fuehreLaufAus({
+      wurzel,
+      quelle: { ...quelle, name: 'NIKON D750', art: 'datentraeger' },
+      ordner: 'DCIM/101NIKON',
+      leser: eigenerLeser,
+    });
+
+    expect(await abbild(quelle.pfad)).toEqual(vorher);
+  });
+
+  it('veraendert auch bei einem abgebrochenen Lauf nichts darauf', async () => {
+    const eigenerLeser = await vieleFotos(10);
+    const vorher = await abbild(quelle.pfad);
+    let erledigt = 0;
+
+    const ergebnis = await fuehreLaufAus({
+      wurzel,
+      quelle: { ...quelle, name: 'NIKON D750', art: 'datentraeger' },
+      leser: eigenerLeser,
+      abbruch: () => (erledigt >= 3 ? 'nutzer' : undefined),
+      melde: (fortschritt) => {
+        erledigt = fortschritt.erledigt;
+      },
+    });
+
+    expect(ergebnis.abgebrochen).toBe('nutzer');
+    expect(await abbild(quelle.pfad)).toEqual(vorher);
+  });
+});
+
+describe('die Quelle bleibt unangetastet', () => {
   /** Eine Quelle mit allen Faellen: neu, Sidecar, uebersprungen, Problem. */
   async function bunteQuelle(): Promise<void> {
     const ordner = join(quelle.pfad, 'Toskana 2019');

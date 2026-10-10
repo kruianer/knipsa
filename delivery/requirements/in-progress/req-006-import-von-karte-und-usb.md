@@ -71,7 +71,7 @@ Problemfälle, Übersprungenes und Ergebnis gelten unverändert wie dort.
 - [x] Given nur der Ordner `DCIM/101NIKON` wurde fehlerfrei importiert,
   when ich das Ergebnis ansehe, then steht dort "Ordner 101NIKON
   vollständig im Archiv" und KEIN Formatier-Hinweis.
-- [ ] Given ein Import läuft, when ich ihn ansehe, then wird auf dem
+- [x] Given ein Import läuft, when ich ihn ansehe, then wird auf dem
   Datenträger KEINE Datei gelöscht, umbenannt oder verändert.
 
 # Constraints
