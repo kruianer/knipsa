@@ -1,8 +1,3 @@
-// Minimalseite. Umgebung und Ampel kommen in der naechsten Etappe dazu.
-const wurzel = document.querySelector<HTMLElement>('#app');
+import { starteSeite } from './seite.js';
 
-if (wurzel !== null) {
-  const titel = document.createElement('h1');
-  titel.textContent = 'Knipsa';
-  wurzel.append(titel);
-}
+await starteSeite(document, (url) => fetch(url));

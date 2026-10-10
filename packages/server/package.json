@@ -16,6 +16,7 @@
     "start": "node dist/start.js"
   },
   "dependencies": {
+    "@fastify/static": "^10.1.6",
     "@knipsa/shared": "workspace:*",
     "fastify": "^5.12.5",
     "kysely": "^0.29.6",

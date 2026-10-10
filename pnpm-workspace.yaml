@@ -4,3 +4,4 @@ packages:
 minimumReleaseAgeExclude:
   - '@types/node@24.19.2'
   - prettier@3.9.10
+  - '@fastify/static@10.1.6'

@@ -1,0 +1,68 @@
+name: Deploy dev
+
+# Push auf dev deployt die dev-Umgebung auf dem Beelink
+# (siehe delivery/devops.md). Keine Secrets aus GitHub: alle Werte stehen
+# in ~/knipsa-env/dev.env auf dem Host.
+on:
+  push:
+    branches: [dev]
+  workflow_dispatch:
+
+concurrency:
+  group: knipsa-dev
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: dev bauen, testen und starten
+    runs-on: [self-hosted, knipsa]
+    env:
+      KNIPSA_ENV: dev
+      COMPOSE_PROJEKT: knipsa-dev
+      READY_URL: http://192.168.2.200:8098/health/ready
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: pnpm einrichten
+        uses: pnpm/action-setup@v4
+
+      - name: Node einrichten
+        uses: actions/setup-node@v5
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+
+      - name: Abhaengigkeiten installieren
+        run: pnpm install --frozen-lockfile
+
+      - name: Lint
+        run: pnpm lint
+
+      - name: Typecheck
+        run: pnpm typecheck
+
+      - name: Tests
+        run: pnpm -r test
+
+      # Ab hier wird deployt. Schlaegt ein Schritt davor fehl, bleibt die
+      # laufende Version unberuehrt in Betrieb.
+      - name: Container bauen und starten
+        run: |
+          docker compose -p "$COMPOSE_PROJEKT" \
+            --env-file "$HOME/knipsa-env/${KNIPSA_ENV}.env" \
+            -f deploy/docker-compose.yml \
+            up -d --build --remove-orphans
+
+      - name: Health-Check
+        run: ./deploy/health-check.sh "$READY_URL"
+
+      - name: Alte Images aufraeumen
+        run: docker image prune -f
+
+      - name: Zustand zeigen
+        run: |
+          docker compose -p "$COMPOSE_PROJEKT" \
+            --env-file "$HOME/knipsa-env/${KNIPSA_ENV}.env" \
+            -f deploy/docker-compose.yml ps

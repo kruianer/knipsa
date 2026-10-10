@@ -91,10 +91,10 @@ nach dem Muster der anderen Apps des Betreibers)
 - [x] Given ein frischer Checkout, when ich die Befehle aus
   `delivery/stack.md` ausführe, then laufen Install, Build, Lint,
   Typecheck und Test grün.
-- [ ] Given ein Push auf `dev`, when der Workflow durchläuft, then zeigt
+- [x] Given ein Push auf `dev`, when der Workflow durchläuft, then zeigt
   `http://192.168.2.200:8098` im Heim-WLAN die Knipsa-Minimalseite mit
   "dev" und grüner Ampel.
-- [ ] Given ein Merge auf `main`, when der Workflow durchläuft, then zeigt
+- [x] Given ein Merge auf `main`, when der Workflow durchläuft, then zeigt
   `http://192.168.2.200:8099` die Minimalseite mit "prod", und dev läuft
   unverändert weiter.
 - [x] Given beide Umgebungen laufen, when ich `/health/live` und
