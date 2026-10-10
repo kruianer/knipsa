@@ -84,6 +84,22 @@ URL. Schlägt ein Schritt fehl, bleibt die laufende Version stehen.
   `knipsa-prod` aus und fasst weder `prod.env`, die prod-Datenbank noch
   den echten Foto-Baum an.
 
+## Neue Konfiguration
+
+- Führt eine Änderung eine neue Variable ein, steht sie mit Kommentar in
+  `deploy/example.env` und hat — wo möglich — einen sicheren Standardwert,
+  sodass ein fehlender Eintrag den Deploy nicht bricht.
+- Nicht-geheime Werte für dev darf der Worker selbst in
+  `~/knipsa-env/dev.env` ergänzen (nur anhängen, nie bestehende Zeilen
+  ändern). `prod.env` und alle Geheimnisse (Passwörter, Tokens) fasst er
+  nie an.
+- Jede neue Variable meldet der Worker beim Abschluss des Requirements
+  ausdrücklich als Aufgabe für den Betreiber: Name, Zweck, Wert für dev
+  (falls selbst eingetragen) und was für prod einzutragen ist.
+- Ein Requirement gilt erst als abgearbeitet, wenn der Deploy auf dev
+  grün ist. Ist er rot, behebt der Worker die Ursache oder meldet sie als
+  Blocker — er schiebt das Requirement nicht nach `done/`.
+
 ## Externer Zugang
 
 Kein Port am Router — weder für Web noch für SSH. Alles läuft über
