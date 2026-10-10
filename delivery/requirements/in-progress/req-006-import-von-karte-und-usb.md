@@ -62,13 +62,13 @@ Problemfälle, Übersprungenes und Ergebnis gelten unverändert wie dort.
 - [x] Given ein Lauf wurde abgebrochen, when ich dieselbe Quelle erneut
   importiere, then werden nur die noch fehlenden Fotos als "neu"
   importiert und die übrigen als "schon bekannt" gezählt.
-- [ ] Given die ganze Karte wurde ohne Abbruch und ohne Problemfall
+- [x] Given die ganze Karte wurde ohne Abbruch und ohne Problemfall
   importiert, when ich das Ergebnis ansehe, then steht dort "Vollständig
   im Archiv — kann formatiert werden".
-- [ ] Given beim Import der ganzen Karte gab es 1 Problemfall, when ich
+- [x] Given beim Import der ganzen Karte gab es 1 Problemfall, when ich
   das Ergebnis ansehe, then steht dort NICHT "kann formatiert werden",
   sondern "nicht vollständig — 1 Problemfall".
-- [ ] Given nur der Ordner `DCIM/101NIKON` wurde fehlerfrei importiert,
+- [x] Given nur der Ordner `DCIM/101NIKON` wurde fehlerfrei importiert,
   when ich das Ergebnis ansehe, then steht dort "Ordner 101NIKON
   vollständig im Archiv" und KEIN Formatier-Hinweis.
 - [ ] Given ein Import läuft, when ich ihn ansehe, then wird auf dem

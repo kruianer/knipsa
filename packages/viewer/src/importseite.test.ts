@@ -238,6 +238,78 @@ describe('Ordner wählen', () => {
   });
 });
 
+describe('Abschluss im Ergebnis', () => {
+  /** Ein Lauf-Ergebnis, von dem nur der Abschluss interessiert. */
+  function lauf(abschluss: string, ordner?: string): ImportZustand['laeufe'][number] {
+    return {
+      quelle: 'NIKON D750',
+      ...(ordner === undefined ? {} : { ordner }),
+      begonnen: '2026-10-10T08:00:00.000Z',
+      beendet: '2026-10-10T08:05:00.000Z',
+      gesamt: 10,
+      neu: 10,
+      bekannt: 0,
+      uebersprungen: 0,
+      problem: 0,
+      dateien: [],
+      abschluss,
+      protokoll: 'protokoll/import/20261010-080000-NIKON_D750.log',
+    };
+  }
+
+  it('zeigt nach der ganzen Karte den Hinweis zum Formatieren', () => {
+    zeichneImport(
+      bereich,
+      { ...leer, laeufe: [lauf('Vollständig im Archiv — kann formatiert werden')] },
+      aktionen(),
+    );
+
+    expect(bereich.querySelector('.lauf-abschluss')?.textContent).toContain(
+      'Vollständig im Archiv — kann formatiert werden',
+    );
+  });
+
+  it('zeigt bei einem Problemfall keinen Hinweis zum Formatieren', () => {
+    zeichneImport(
+      bereich,
+      { ...leer, laeufe: [{ ...lauf('nicht vollständig — 1 Problemfall'), problem: 1 }] },
+      aktionen(),
+    );
+
+    const text = bereich.querySelector('.lauf')?.textContent ?? '';
+    expect(text).toContain('nicht vollständig — 1 Problemfall');
+    expect(text).not.toContain('kann formatiert werden');
+  });
+
+  it('zeigt nach einem Ordner-Lauf nur den Ordner', () => {
+    zeichneImport(
+      bereich,
+      {
+        ...leer,
+        laeufe: [lauf('Ordner 101NIKON vollständig im Archiv', 'DCIM/101NIKON')],
+      },
+      aktionen(),
+    );
+
+    const block = bereich.querySelector<HTMLElement>('.lauf');
+    expect(block?.dataset.ordner).toBe('DCIM/101NIKON');
+    expect(block?.textContent).toContain('Ordner 101NIKON vollständig im Archiv');
+    expect(block?.textContent).not.toContain('kann formatiert werden');
+  });
+
+  it('zeigt einen abgebrochenen Lauf als abgebrochen', () => {
+    zeichneImport(
+      bereich,
+      { ...leer, laeufe: [lauf('abgebrochen — Datenträger entfernt')] },
+      aktionen(),
+    );
+
+    expect(bereich.querySelector('.lauf-abschluss')?.textContent).toContain(
+      'abgebrochen — Datenträger entfernt',
+    );
+  });
+});
+
 describe('dateienText', () => {
   it('nennt die Einzahl in der Einzahl', () => {
     expect(dateienText(0)).toBe('0 Dateien');

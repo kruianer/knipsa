@@ -509,40 +509,116 @@ describe('abschlussText', () => {
   });
 });
 
-describe('Abbrechen mitten im Lauf', () => {
-  /**
-   * 200 Fotos, deren Aufnahmezeit ohne `exiftool` feststeht: hier zaehlt
-   * der Abbruch, nicht das Lesen der Metadaten. Jede Datei bekommt eine
-   * eigene Sekunde, damit die Schluessel eindeutig sind.
-   */
-  async function vieleFotos(anzahl: number): Promise<MetadatenLeser> {
-    const zeiten = new Map<string, number>();
-    for (let nummer = 0; nummer < anzahl; nummer += 1) {
-      const name = `DSC_${String(nummer).padStart(4, '0')}.NEF`;
-      await schreibeDatei(join(quelle.pfad, 'DCIM', '100NIKON', name), `Foto ${nummer}`);
-      zeiten.set(name, nummer);
-    }
-
-    return {
-      leseAufnahmezeit: (pfad) => {
-        const nummer = zeiten.get(pfad.split('/').at(-1) ?? '') ?? 0;
-        return Promise.resolve({
-          art: 'gelesen' as const,
-          zeit: {
-            jahr: 2019,
-            monat: 6,
-            tag: 14,
-            stunde: 10,
-            minute: Math.floor(nummer / 60),
-            sekunde: nummer % 60,
-          },
-          bruchteil: undefined,
-        });
-      },
-      schliesse: () => Promise.resolve(),
-    };
+/**
+ * Legt `anzahl` Fotos in `DCIM/100NIKON` und liefert einen Leser, der
+ * ihre Aufnahmezeit ohne `exiftool` kennt — in diesen Tests zaehlt der
+ * Ablauf des Laufs, nicht das Lesen der Metadaten. Jede Datei bekommt
+ * eine eigene Sekunde, damit die Schluessel eindeutig sind. Mit
+ * `ohneZeit` hat eine Datei keine Aufnahmezeit und wird zum Problemfall.
+ */
+async function vieleFotos(
+  anzahl: number,
+  { ordner = 'DCIM/100NIKON', ohneZeit = [] as readonly number[] } = {},
+): Promise<MetadatenLeser> {
+  const zeiten = new Map<string, number>();
+  for (let nummer = 0; nummer < anzahl; nummer += 1) {
+    const name = `DSC_${String(nummer).padStart(4, '0')}.NEF`;
+    await schreibeDatei(join(quelle.pfad, ...ordner.split('/'), name), `Foto ${nummer}`);
+    zeiten.set(name, nummer);
   }
 
+  return {
+    leseAufnahmezeit: (pfad) => {
+      const nummer = zeiten.get(pfad.split('/').at(-1) ?? '') ?? 0;
+      if (ohneZeit.includes(nummer)) {
+        return Promise.resolve({ art: 'keineZeit' as const });
+      }
+
+      return Promise.resolve({
+        art: 'gelesen' as const,
+        zeit: {
+          jahr: 2019,
+          monat: 6,
+          tag: 14,
+          stunde: 10,
+          minute: Math.floor(nummer / 60),
+          sekunde: nummer % 60,
+        },
+        bruchteil: undefined,
+      });
+    },
+    schliesse: () => Promise.resolve(),
+  };
+}
+
+describe('Abschluss eines Laufs', () => {
+  it('raet nach der ganzen Karte ohne Problemfall zum Formatieren', async () => {
+    const eigenerLeser = await vieleFotos(10);
+
+    const ergebnis = await fuehreLaufAus({
+      wurzel,
+      quelle: { ...quelle, name: 'NIKON D750', art: 'datentraeger' },
+      leser: eigenerLeser,
+    });
+
+    expect(ergebnis.neu).toBe(10);
+    expect(ergebnis.problem).toBe(0);
+    expect(ergebnis.abschluss).toBe('Vollständig im Archiv — kann formatiert werden');
+  });
+
+  it('raet nach einem Problemfall auf der Karte nicht zum Formatieren', async () => {
+    const eigenerLeser = await vieleFotos(10, { ohneZeit: [4] });
+
+    const ergebnis = await fuehreLaufAus({
+      wurzel,
+      quelle: { ...quelle, name: 'NIKON D750', art: 'datentraeger' },
+      leser: eigenerLeser,
+    });
+
+    expect(ergebnis.problem).toBe(1);
+    expect(ergebnis.abschluss).toBe('nicht vollständig — 1 Problemfall');
+    expect(ergebnis.abschluss).not.toContain('kann formatiert werden');
+  });
+
+  it('nennt nach einem Ordner der Karte nur den Ordner, ohne Formatier-Hinweis', async () => {
+    const eigenerLeser = await vieleFotos(3, { ordner: 'DCIM/101NIKON' });
+    await schreibeDatei(join(quelle.pfad, 'DCIM', '100NIKON', 'DSC_9999.NEF'), 'anderes Foto');
+
+    const ergebnis = await fuehreLaufAus({
+      wurzel,
+      quelle: { ...quelle, name: 'NIKON D750', art: 'datentraeger' },
+      ordner: 'DCIM/101NIKON',
+      leser: eigenerLeser,
+    });
+
+    expect(ergebnis.neu).toBe(3);
+    expect(ergebnis.abschluss).toBe('Ordner 101NIKON vollständig im Archiv');
+    expect(ergebnis.abschluss).not.toContain('kann formatiert werden');
+  });
+
+  it('nennt nach der ganzen Ordner-Quelle keinen Formatier-Hinweis', async () => {
+    const eigenerLeser = await vieleFotos(2);
+
+    const ergebnis = await fuehreLaufAus({ wurzel, quelle, leser: eigenerLeser });
+
+    expect(ergebnis.abschluss).toBe('Vollständig im Archiv');
+  });
+
+  it('schreibt den Abschluss ins Protokoll', async () => {
+    const eigenerLeser = await vieleFotos(2);
+
+    const ergebnis = await fuehreLaufAus({
+      wurzel,
+      quelle: { ...quelle, art: 'datentraeger' },
+      leser: eigenerLeser,
+    });
+
+    const protokoll = await readFile(join(wurzel, ergebnis.protokoll), 'utf8');
+    expect(protokoll).toContain('Abschluss:     Vollständig im Archiv — kann formatiert werden');
+  });
+});
+
+describe('Abbrechen mitten im Lauf', () => {
   it('endet als abgebrochen und laesst die Fotos bis dahin vollstaendig im Wartebereich', async () => {
     const eigenerLeser = await vieleFotos(200);
     let erledigt = 0;
