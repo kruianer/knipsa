@@ -69,7 +69,9 @@ describe('Datenbank', () => {
   });
 
   it('legt die Daten in ein benanntes Volume, das Compose je Projekt trennt', () => {
-    expect(db?.volumes).toEqual(['db-daten:/var/lib/postgresql/data']);
+    // Ab Postgres 18 muss das Volume unter /var/lib/postgresql liegen,
+    // unter .../data verweigert das Image den Start.
+    expect(db?.volumes).toEqual(['db-daten:/var/lib/postgresql']);
     expect(Object.keys(compose.volumes ?? {})).toEqual(['db-daten']);
   });
 
